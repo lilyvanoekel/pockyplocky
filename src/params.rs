@@ -4,14 +4,8 @@ use nih_plug::prelude::*;
 pub struct SinewhiskParams {
     #[id = "gain"]
     pub gain: FloatParam,
-    #[id = "amp_atk"]
-    pub amp_attack_ms: FloatParam,
-    #[id = "amp_rel"]
-    pub amp_release_ms: FloatParam,
     #[id = "filter_res"]
     pub filter_resonance: FloatParam,
-    #[id = "noise_burst"]
-    pub noise_burst_ms: FloatParam,
 }
 
 impl Default for SinewhiskParams {
@@ -30,28 +24,6 @@ impl Default for SinewhiskParams {
             .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
 
-            amp_attack_ms: FloatParam::new(
-                "Attack",
-                0.0,
-                FloatRange::Skewed {
-                    min: 0.0,
-                    max: 2000.0,
-                    factor: FloatRange::skew_factor(-1.0),
-                },
-            )
-            .with_step_size(0.1)
-            .with_unit(" ms"),
-
-            amp_release_ms: FloatParam::new(
-                "Release",
-                100.0,
-                FloatRange::Skewed {
-                    min: 0.0,
-                    max: 2000.0,
-                    factor: FloatRange::skew_factor(-1.0),
-                },
-            ),
-
             filter_resonance: FloatParam::new(
                 "Filter Res",
                 50.0,
@@ -62,17 +34,6 @@ impl Default for SinewhiskParams {
             )
             .with_smoother(SmoothingStyle::Linear(50.0))
             .with_unit(" Q"),
-
-            noise_burst_ms: FloatParam::new(
-                "Noise Burst",
-                5.0,
-                FloatRange::Linear {
-                    min: 2.0,
-                    max: 100.0,
-                },
-            )
-            .with_smoother(SmoothingStyle::Linear(10.0))
-            .with_unit(" ms"),
         }
     }
 }

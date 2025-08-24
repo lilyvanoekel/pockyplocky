@@ -1,3 +1,3 @@
-cargo xtask bundle xylophone --release
+cargo xtask bundle pockyplocky --release
 
-cp -r ./target/bundled/xylophone.clap /Library/Audio/Plug-Ins/CLAP
+cp -r ./target/bundled/pockyplocky.clap /Library/Audio/Plug-Ins/CLAP

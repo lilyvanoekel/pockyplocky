@@ -1,31 +1,28 @@
 use nih_plug::prelude::*;
 use std::sync::Arc;
 
+mod filter;
 mod params;
 mod voice;
 use params::SinewhiskParams;
-use rand::Rng;
-use rand_pcg::Pcg32;
-use voice::{MAX_BLOCK_SIZE, ResonantFilter, Voices};
+use voice::{MAX_BLOCK_SIZE, Voices};
 
-struct SineWhisk {
+struct Pockyplocky {
     params: Arc<SinewhiskParams>,
-    prng: Pcg32,
     voices: Voices,
 }
 
-impl Default for SineWhisk {
+impl Default for Pockyplocky {
     fn default() -> Self {
         Self {
             params: Arc::new(SinewhiskParams::default()),
-            prng: Pcg32::new(420, 1337),
             voices: Voices::default(),
         }
     }
 }
 
-impl Plugin for SineWhisk {
-    const NAME: &'static str = "Xylophone";
+impl Plugin for Pockyplocky {
+    const NAME: &'static str = "Pockyplocky";
     const VENDOR: &'static str = "Lily's Nonexistent Company";
     const URL: &'static str = "https://lilyvanoekel.com";
     const EMAIL: &'static str = "why@doyouneed.this";
@@ -91,23 +88,9 @@ impl Plugin for SineWhisk {
                                     .start_voice(context, timing, voice_id, channel, note);
                                 let voice = &mut self.voices.voices_mut()[s];
                                 voice.velocity_sqrt = velocity.sqrt();
-                                voice.phase = 0.0;
-                                voice.phase_delta = util::midi_note_to_freq(note) / sample_rate;
                                 voice.start_time = block_start as u32;
-                                voice.key_held = true;
-
-                                // Set up noise burst timing from parameter
-                                let noise_burst_duration =
-                                    (sample_rate * self.params.noise_burst_ms.value() / 1000.0)
-                                        as u32;
-                                voice.noise_burst_duration = noise_burst_duration;
-                                voice.noise_samples_generated = 0;
-
-                                // Seed the voice's PRNG with a unique seed based on note, channel, and timing
-                                let seed = (note as u64)
-                                    | ((channel as u64) << 8)
-                                    | ((timing as u64) << 16);
-                                voice.seed_prng(seed);
+                                voice.trigger = true;
+                                voice.silence_counter = 0;
 
                                 // Set up very short attack envelope for filter output smoothing
                                 voice.amp_envelope.style = SmoothingStyle::Exponential(10.0);
@@ -121,25 +104,6 @@ impl Plugin for SineWhisk {
                                 voice
                                     .filter
                                     .set_frequency(note_freq, self.params.filter_resonance.value());
-                            }
-                            NoteEvent::NoteOff {
-                                timing: _,
-                                voice_id,
-                                channel,
-                                note,
-                                velocity: _,
-                            } => {
-                                // Mark key as released but keep voice active for filter tail
-                                for voice in self.voices.voices_mut() {
-                                    if voice.active
-                                        && voice.channel == channel
-                                        && voice.note == note
-                                    {
-                                        if voice_id.is_none() || voice_id == Some(voice.voice_id) {
-                                            voice.key_held = false;
-                                        }
-                                    }
-                                }
                             }
                             NoteEvent::Choke {
                                 timing,
@@ -188,89 +152,43 @@ impl Plugin for SineWhisk {
                 let mut sample = 0.0;
 
                 for voice in self.voices.voices_mut() {
-                    if voice.active {
-                        let input = if voice.noise_samples_generated < voice.noise_burst_duration {
-                            // TEMPORARY: Single sample click instead of noise burst
+                    if !voice.active {
+                        continue;
+                    }
 
-                            let v = match voice.noise_samples_generated {
-                                0 => 1.0, // first sample
-                                1 => 0.0, // second sample cancels the DC/step
-                                _ => 0.0,
-                            };
-                            voice.noise_samples_generated += 1;
-                            v
+                    let input = if voice.trigger {
+                        voice.trigger = false;
+                        1.0
+                    } else {
+                        0.0
+                    };
 
-                            // voice.noise_samples_generated += 1;
-                            // input_value
+                    // Process through the resonant filter
+                    let filtered_noise = voice.filter.process(input);
+                    let envelope_value = voice.envelope_values[value_idx];
+                    let voice_sample = filtered_noise * envelope_value * gain_buffer[value_idx];
+                    sample += voice_sample;
 
-                            // ORIGINAL NOISE BURST CODE (commented out for easy reversal):
-                            /*
-                            // Generate white noise only during the noise burst period
-                            let ramp_samples = (sample_rate * 0.001) as u32; // 1 millisecond ramp
-                            let ramp_up_end = ramp_samples.min(voice.noise_burst_duration / 2);
-                            let ramp_down_start = voice.noise_burst_duration - ramp_samples;
+                    // Count consecutive zero samples for voice termination
+                    if voice_sample == 0.0 {
+                        voice.silence_counter += 1;
 
-                            let envelope_value = if voice.noise_samples_generated < ramp_up_end {
-                                // Ramp up
-                                voice.noise_samples_generated as f32 / ramp_up_end as f32
-                            } else if voice.noise_samples_generated >= ramp_down_start {
-                                // Ramp down
-                                (voice.noise_burst_duration - voice.noise_samples_generated) as f32
-                                    / ramp_samples as f32
-                            } else {
-                                // Full volume in the middle
-                                1.0
-                            };
-
-                            voice.noise_samples_generated += 1;
-                            (voice.prng.gen_range(0.0..1.0) * 2.0 - 1.0) * envelope_value
-                            */
-                        } else {
-                            // No input after noise burst, but filter keeps running
-                            0.0
-                        };
-
-                        // Process through the resonant filter
-                        let filtered_noise = voice.filter.process(input);
-
-                        // Apply envelope to filter output and mute first 2 samples
-                        let envelope_value = voice.envelope_values[value_idx];
-                        // let mute_factor = if voice.noise_samples_generated <= 2 {
-                        //     0.0
-                        // } else {
-                        //     1.0
-                        // };
-                        sample += filtered_noise * envelope_value;
+                        if voice.silence_counter > 1000 {
+                            context.send_event(NoteEvent::VoiceTerminated {
+                                timing: block_end as u32,
+                                voice_id: Some(voice.voice_id),
+                                channel: voice.channel,
+                                note: voice.note,
+                            });
+                            voice.active = false;
+                        }
+                    } else {
+                        voice.silence_counter = 0;
                     }
                 }
 
-                // Apply smoothed gain parameter to control volume
-                output[0][sample_idx] = sample * gain_buffer[value_idx];
-                output[1][sample_idx] = sample * gain_buffer[value_idx];
-            }
-
-            let mut voices_to_terminate = [false; voice::NUM_VOICES];
-            for (voice_idx, voice) in self.voices.voices().iter().enumerate() {
-                if voice.active {
-                    // Terminate voice after 2 seconds
-                    let voice_duration = block_end as u32 - voice.start_time;
-                    let two_seconds = (2.0 * sample_rate) as u32;
-
-                    if voice_duration > two_seconds {
-                        context.send_event(NoteEvent::VoiceTerminated {
-                            timing: block_end as u32,
-                            voice_id: Some(voice.voice_id),
-                            channel: voice.channel,
-                            note: voice.note,
-                        });
-                        voices_to_terminate[voice_idx] = true;
-                    }
-                }
-            }
-            for (voice_idx, &should_terminate) in voices_to_terminate.iter().enumerate() {
-                if should_terminate {
-                    self.voices.voices_mut()[voice_idx].active = false;
-                }
+                output[0][sample_idx] = sample;
+                output[1][sample_idx] = sample;
             }
 
             block_start = block_end;
@@ -281,13 +199,13 @@ impl Plugin for SineWhisk {
     }
 }
 
-impl ClapPlugin for SineWhisk {
-    const CLAP_ID: &'static str = "com.lilyvanoekel.xylophone";
-    const CLAP_DESCRIPTION: Option<&'static str> = Some("A simple xylophone");
+impl ClapPlugin for Pockyplocky {
+    const CLAP_ID: &'static str = "com.lilyvanoekel.pockyplocky";
+    const CLAP_DESCRIPTION: Option<&'static str> = Some("A xylophone synthesizer");
     const CLAP_MANUAL_URL: Option<&'static str> = Some(Self::URL);
     const CLAP_SUPPORT_URL: Option<&'static str> = None;
     const CLAP_FEATURES: &'static [ClapFeature] =
         &[ClapFeature::Instrument, ClapFeature::Synthesizer];
 }
 
-nih_export_clap!(SineWhisk);
+nih_export_clap!(Pockyplocky);
