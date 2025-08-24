@@ -3,12 +3,14 @@ use std::sync::Arc;
 
 mod params;
 mod voice;
-
 use params::SinewhiskParams;
-use voice::{MAX_BLOCK_SIZE, NUM_VOICES, Voices};
+use rand::Rng;
+use rand_pcg::Pcg32;
+use voice::{MAX_BLOCK_SIZE, ResonantFilter, Voices};
 
 struct SineWhisk {
     params: Arc<SinewhiskParams>,
+    prng: Pcg32,
     voices: Voices,
 }
 
@@ -16,6 +18,7 @@ impl Default for SineWhisk {
     fn default() -> Self {
         Self {
             params: Arc::new(SinewhiskParams::default()),
+            prng: Pcg32::new(420, 1337),
             voices: Voices::default(),
         }
     }
@@ -86,14 +89,19 @@ impl Plugin for SineWhisk {
                                 let s = self
                                     .voices
                                     .start_voice(context, timing, voice_id, channel, note);
-                                self.voices.velocity_sqrt[s] = velocity.sqrt();
-                                self.voices.phase[s] = 0.0;
-                                self.voices.phase_delta[s] =
-                                    util::midi_note_to_freq(note) / sample_rate;
-                                self.voices.amp_envelope[s].style =
-                                    SmoothingStyle::Exponential(self.params.amp_attack_ms.value());
-                                self.voices.amp_envelope[s].reset(0.0);
-                                self.voices.amp_envelope[s].set_target(sample_rate, 1.0);
+                                let voice = &mut self.voices.voices_mut()[s];
+                                voice.velocity_sqrt = velocity.sqrt();
+                                voice.phase = 0.0;
+                                voice.phase_delta = util::midi_note_to_freq(note) / sample_rate;
+                                voice.start_time = block_start as u32;
+                                voice.key_held = true;
+
+                                // Initialize filter with note frequency and resonance
+                                let note_freq = util::midi_note_to_freq(note);
+                                voice.filter = ResonantFilter::new(sample_rate);
+                                voice
+                                    .filter
+                                    .set_frequency(note_freq, self.params.filter_resonance.value());
                             }
                             NoteEvent::NoteOff {
                                 timing: _,
@@ -101,13 +109,19 @@ impl Plugin for SineWhisk {
                                 channel,
                                 note,
                                 velocity: _,
-                            } => self.voices.start_release_for_voices(
-                                sample_rate,
-                                voice_id,
-                                channel,
-                                note,
-                                self.params.amp_release_ms.value(),
-                            ),
+                            } => {
+                                // Mark key as released but keep voice active for filter tail
+                                for voice in self.voices.voices_mut() {
+                                    if voice.active
+                                        && voice.channel == channel
+                                        && voice.note == note
+                                    {
+                                        if voice_id.is_none() || voice_id == Some(voice.voice_id) {
+                                            voice.key_held = false;
+                                        }
+                                    }
+                                }
+                            }
                             NoteEvent::Choke {
                                 timing,
                                 voice_id,
@@ -134,31 +148,23 @@ impl Plugin for SineWhisk {
             output[1][block_start..block_end].fill(0.0);
 
             let block_len = block_end - block_start;
-            let mut gain = [0.0; MAX_BLOCK_SIZE];
-            self.params.gain.smoothed.next_block(&mut gain, block_len);
-
-            for s in 0..NUM_VOICES {
-                self.voices.amp_envelope[s]
-                    .next_block(&mut self.voices.envelope_values[s], block_len);
-            }
 
             for (value_idx, sample_idx) in (block_start..block_end).enumerate() {
                 let mut sample = 0.0;
 
-                for s in 0..NUM_VOICES {
-                    if self.voices.active[s] {
-                        let amp = self.voices.velocity_sqrt[s]
-                            * gain[value_idx]
-                            * self.voices.envelope_values[s][value_idx];
+                for voice in self.voices.voices_mut() {
+                    if voice.active {
+                        let input = if voice.key_held {
+                            // Generate white noise only while key is held
+                            (self.prng.gen_range(0.0..1.0) * 2.0 - 1.0)
+                        } else {
+                            // No input when key is released, but filter keeps running
+                            0.0
+                        };
 
-                        // Simple sine wave oscillator
-                        let sine_sample = (self.voices.phase[s] * 2.0 * std::f32::consts::PI).sin();
-
-                        sample += amp * sine_sample;
-
-                        // Update phase
-                        self.voices.phase[s] += self.voices.phase_delta[s];
-                        self.voices.phase[s] %= 1.0;
+                        // Process through the resonant filter
+                        let filtered_noise = voice.filter.process(input);
+                        sample += filtered_noise;
                     }
                 }
 
@@ -166,21 +172,27 @@ impl Plugin for SineWhisk {
                 output[1][sample_idx] = sample;
             }
 
-            let mut voices_to_terminate = [false; NUM_VOICES as usize];
-            for (voice_idx, &active) in self.voices.active.iter().enumerate() {
-                if active && self.voices.should_terminate_voice(voice_idx) {
-                    context.send_event(NoteEvent::VoiceTerminated {
-                        timing: block_end as u32,
-                        voice_id: Some(self.voices.voice_id[voice_idx]),
-                        channel: self.voices.channel[voice_idx],
-                        note: self.voices.note[voice_idx],
-                    });
-                    voices_to_terminate[voice_idx] = true;
+            let mut voices_to_terminate = [false; voice::NUM_VOICES];
+            for (voice_idx, voice) in self.voices.voices().iter().enumerate() {
+                if voice.active {
+                    // Terminate voice after 2 seconds
+                    let voice_duration = block_end as u32 - voice.start_time;
+                    let two_seconds = (2.0 * sample_rate) as u32;
+
+                    if voice_duration > two_seconds {
+                        context.send_event(NoteEvent::VoiceTerminated {
+                            timing: block_end as u32,
+                            voice_id: Some(voice.voice_id),
+                            channel: voice.channel,
+                            note: voice.note,
+                        });
+                        voices_to_terminate[voice_idx] = true;
+                    }
                 }
             }
             for (voice_idx, &should_terminate) in voices_to_terminate.iter().enumerate() {
                 if should_terminate {
-                    self.voices.active[voice_idx] = false;
+                    self.voices.voices_mut()[voice_idx].active = false;
                 }
             }
 
@@ -197,11 +209,8 @@ impl ClapPlugin for SineWhisk {
     const CLAP_DESCRIPTION: Option<&'static str> = Some("A simple xylophone");
     const CLAP_MANUAL_URL: Option<&'static str> = Some(Self::URL);
     const CLAP_SUPPORT_URL: Option<&'static str> = None;
-    const CLAP_FEATURES: &'static [ClapFeature] = &[
-        ClapFeature::Instrument,
-        ClapFeature::Synthesizer,
-        ClapFeature::Stereo,
-    ];
+    const CLAP_FEATURES: &'static [ClapFeature] =
+        &[ClapFeature::Instrument, ClapFeature::Synthesizer];
 }
 
 nih_export_clap!(SineWhisk);

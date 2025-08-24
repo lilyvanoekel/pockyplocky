@@ -1,44 +1,178 @@
 use nih_plug::prelude::*;
 
-pub const NUM_VOICES: usize = 16;
 pub const MAX_BLOCK_SIZE: usize = 64;
 
+// // Resonant filter for pinged filter effect
+// pub struct ResonantFilter {
+//     // Filter coefficients
+//     b0: f32,
+//     b1: f32,
+//     a1: f32,
+//     a2: f32,
+//     // State variables
+//     y1: f32,
+//     y2: f32,
+//     sample_rate: f32,
+// }
+
+// impl ResonantFilter {
+//     pub fn new(sample_rate: f32) -> Self {
+//         Self {
+//             b0: 0.0,
+//             b1: 0.0,
+//             a1: 0.0,
+//             a2: 0.0,
+//             y1: 0.0,
+//             y2: 0.0,
+//             sample_rate,
+//         }
+//     }
+
+//     pub fn set_frequency(&mut self, frequency: f32, resonance: f32) {
+//         let omega_0 = frequency * 2.0 * std::f32::consts::PI;
+//         let alpha = (omega_0 / self.sample_rate).sin() / (2.0 * resonance);
+//         let cosw0 = (omega_0 / self.sample_rate).cos();
+
+//         self.b0 = alpha;
+//         self.b1 = 0.0;
+//         self.a1 = -2.0 * cosw0;
+//         self.a2 = 1.0 - alpha;
+//     }
+
+//     pub fn process(&mut self, input: f32) -> f32 {
+//         let yn = self.b0 * input - self.a1 * self.y1 - self.a2 * self.y2;
+//         self.y2 = self.y1;
+//         self.y1 = yn;
+//         yn
+//     }
+
+//     pub fn reset(&mut self) {
+//         self.y1 = 0.0;
+//         self.y2 = 0.0;
+//     }
+// }
+
+pub struct ResonantFilter {
+    b0: f32,
+    b1: f32,
+    b2: f32,
+    a1: f32,
+    a2: f32,
+    x1: f32,
+    x2: f32,
+    y1: f32,
+    y2: f32,
+    sample_rate: f32,
+}
+
+impl ResonantFilter {
+    pub fn new(sample_rate: f32) -> Self {
+        Self {
+            b0: 0.0,
+            b1: 0.0,
+            b2: 0.0,
+            a1: 0.0,
+            a2: 0.0,
+            x1: 0.0,
+            x2: 0.0,
+            y1: 0.0,
+            y2: 0.0,
+            sample_rate,
+        }
+    }
+
+    pub fn set_frequency(&mut self, frequency: f32, q: f32) {
+        let w0 = 2.0 * std::f32::consts::PI * frequency / self.sample_rate;
+        let cos_w0 = w0.cos();
+        let sin_w0 = w0.sin();
+
+        let alpha = sin_w0 / (2.0 * q);
+
+        // Constant peak gain form
+        let b0 = q * alpha;
+        let b1 = 0.0;
+        let b2 = -q * alpha;
+        let a0 = 1.0 + alpha;
+        let a1 = -2.0 * cos_w0;
+        let a2 = 1.0 - alpha;
+
+        self.b0 = b0 / a0;
+        self.b1 = b1 / a0;
+        self.b2 = b2 / a0;
+        self.a1 = a1 / a0;
+        self.a2 = a2 / a0;
+    }
+
+    pub fn process(&mut self, input: f32) -> f32 {
+        let y = self.b0 * input + self.b1 * self.x1 + self.b2 * self.x2
+            - self.a1 * self.y1
+            - self.a2 * self.y2;
+
+        self.x2 = self.x1;
+        self.x1 = input;
+        self.y2 = self.y1;
+        self.y1 = y;
+        y
+    }
+
+    pub fn reset(&mut self) {
+        self.x1 = 0.0;
+        self.x2 = 0.0;
+        self.y1 = 0.0;
+        self.y2 = 0.0;
+    }
+}
+
+pub struct Voice {
+    pub active: bool,
+    pub voice_id: i32,
+    pub channel: u8,
+    pub note: u8,
+    pub internal_voice_id: u64,
+    pub velocity_sqrt: f32,
+    pub releasing: bool,
+    pub amp_envelope: Smoother<f32>,
+    pub envelope_values: [f32; MAX_BLOCK_SIZE],
+    pub phase: f32,
+    pub phase_delta: f32,
+    pub filter: ResonantFilter,
+    pub start_time: u32,
+    pub key_held: bool,
+}
+
+impl Default for Voice {
+    fn default() -> Self {
+        Self {
+            active: false,
+            voice_id: 0,
+            channel: 0,
+            note: 0,
+            internal_voice_id: 0,
+            velocity_sqrt: 0.0,
+            releasing: false,
+            amp_envelope: Smoother::none(),
+            envelope_values: [0.0; MAX_BLOCK_SIZE],
+            phase: 0.0,
+            phase_delta: 0.0,
+            filter: ResonantFilter::new(44100.0), // Will be set properly when voice starts
+            start_time: 0,
+            key_held: false,
+        }
+    }
+}
+
+pub const NUM_VOICES: usize = 16;
+
 pub struct Voices {
-    /// Whether each voice slot is active
-    pub active: [bool; NUM_VOICES],
-    /// The voice ID for each voice
-    pub voice_id: [i32; NUM_VOICES],
-    /// The note's channel for each voice, in `0..16`
-    pub channel: [u8; NUM_VOICES],
-    /// The note's key/note for each voice, in `0..128`
-    pub note: [u8; NUM_VOICES],
-    /// The internal voice ID for each voice
-    pub internal_voice_id: [u64; NUM_VOICES],
-    /// The square root of the note's velocity for each voice
-    pub velocity_sqrt: [f32; NUM_VOICES],
-    pub releasing: [bool; NUM_VOICES],
-    pub amp_envelope: [Smoother<f32>; NUM_VOICES],
-    pub envelope_values: [[f32; MAX_BLOCK_SIZE]; NUM_VOICES],
-    pub next_internal_voice_id: u64,
-    pub phase: [f32; NUM_VOICES],
-    pub phase_delta: [f32; NUM_VOICES],
+    voices: [Voice; NUM_VOICES],
+    next_internal_voice_id: u64,
 }
 
 impl Default for Voices {
     fn default() -> Self {
         Self {
-            active: [false; NUM_VOICES],
-            voice_id: [0; NUM_VOICES],
-            channel: [0; NUM_VOICES],
-            note: [0; NUM_VOICES],
-            internal_voice_id: [0; NUM_VOICES],
-            velocity_sqrt: [0.0; NUM_VOICES],
-            releasing: [false; NUM_VOICES],
-            amp_envelope: [0; NUM_VOICES].map(|_| Smoother::none()),
-            envelope_values: [[0.0; MAX_BLOCK_SIZE]; NUM_VOICES],
+            voices: std::array::from_fn(|_| Voice::default()),
             next_internal_voice_id: 0,
-            phase: [0.0; NUM_VOICES],
-            phase_delta: [0.0; NUM_VOICES],
         }
     }
 }
@@ -46,16 +180,16 @@ impl Default for Voices {
 impl Voices {
     /// Find a free voice slot
     pub fn find_free_slot(&self) -> Option<usize> {
-        self.active.iter().position(|&active| !active)
+        self.voices.iter().position(|voice| !voice.active)
     }
 
     /// Find the oldest voice slot (lowest internal_voice_id)
     pub fn find_oldest_slot(&self) -> Option<usize> {
-        self.active
+        self.voices
             .iter()
             .enumerate()
-            .filter(|&(_, &active)| active)
-            .min_by_key(|&(idx, _)| self.internal_voice_id[idx])
+            .filter(|(_, voice)| voice.active)
+            .min_by_key(|(_, voice)| voice.internal_voice_id)
             .map(|(idx, _)| idx)
     }
 
@@ -70,48 +204,36 @@ impl Voices {
         velocity_sqrt: f32,
         amp_envelope: Smoother<f32>,
     ) {
-        self.active[slot] = true;
-        self.voice_id[slot] = voice_id;
-        self.channel[slot] = channel;
-        self.note[slot] = note;
-        self.internal_voice_id[slot] = internal_voice_id;
-        self.velocity_sqrt[slot] = velocity_sqrt;
-        self.releasing[slot] = false;
-        self.amp_envelope[slot] = amp_envelope;
+        let voice = &mut self.voices[slot];
+        voice.active = true;
+        voice.voice_id = voice_id;
+        voice.channel = channel;
+        voice.note = note;
+        voice.internal_voice_id = internal_voice_id;
+        voice.velocity_sqrt = velocity_sqrt;
+        voice.releasing = false;
+        voice.amp_envelope = amp_envelope;
     }
 
     /// Deactivate a voice slot
     pub fn deactivate_voice(&mut self, slot: usize) {
-        self.active[slot] = false;
+        self.voices[slot].active = false;
     }
 
     /// Get voice data for a specific slot (for debugging/logging)
     pub fn get_voice_info(&self, slot: usize) -> Option<(i32, u8, u8)> {
-        if self.active[slot] {
-            Some((self.voice_id[slot], self.channel[slot], self.note[slot]))
+        let voice = &self.voices[slot];
+        if voice.active {
+            Some((voice.voice_id, voice.channel, voice.note))
         } else {
             None
         }
     }
 
-    /// Get active voice indices for efficient iteration (returns array and count)
-    pub fn get_active_voice_indices(&self) -> ([usize; NUM_VOICES], usize) {
-        let mut active_indices = [usize::MAX; NUM_VOICES];
-        let mut active_count = 0;
-
-        for (idx, &active) in self.active.iter().enumerate() {
-            if active {
-                active_indices[active_count] = idx;
-                active_count += 1;
-            }
-        }
-
-        (active_indices, active_count)
-    }
-
     /// Check if a voice should be terminated (releasing and envelope at 0)
     pub fn should_terminate_voice(&self, slot: usize) -> bool {
-        self.active[slot] && self.releasing[slot] && self.amp_envelope[slot].previous_value() == 0.0
+        let voice = &self.voices[slot];
+        voice.active && voice.releasing && voice.amp_envelope.previous_value() == 0.0
     }
 
     /// Start a new voice with the given voice ID. If all voices are currently in use, the oldest
@@ -179,18 +301,18 @@ impl Voices {
         note: u8,
         amp_release_ms: f32,
     ) {
-        for (voice_idx, &active) in self.active.iter().enumerate() {
-            if !active {
+        for voice in &mut self.voices {
+            if !voice.active {
                 continue;
             }
 
-            let matches_voice_id = voice_id == Some(self.voice_id[voice_idx]);
-            let matches_note = channel == self.channel[voice_idx] && note == self.note[voice_idx];
+            let matches_voice_id = voice_id == Some(voice.voice_id);
+            let matches_note = channel == voice.channel && note == voice.note;
 
             if matches_voice_id || matches_note {
-                self.releasing[voice_idx] = true;
-                self.amp_envelope[voice_idx].style = SmoothingStyle::Exponential(amp_release_ms);
-                self.amp_envelope[voice_idx].set_target(sample_rate, 0.0);
+                voice.releasing = true;
+                voice.amp_envelope.style = SmoothingStyle::Exponential(amp_release_ms);
+                voice.amp_envelope.set_target(sample_rate, 0.0);
 
                 // If this targetted a single voice ID, we're done here. Otherwise there may be
                 // multiple overlapping voices as we enabled support for that in the
@@ -214,21 +336,21 @@ impl Voices {
         note: u8,
     ) {
         let mut voices_to_terminate = [false; NUM_VOICES];
-        for (voice_idx, &active) in self.active.iter().enumerate() {
-            if !active {
+        for (voice_idx, voice) in self.voices.iter().enumerate() {
+            if !voice.active {
                 continue;
             }
 
-            let matches_voice_id = voice_id == Some(self.voice_id[voice_idx]);
-            let matches_note = channel == self.channel[voice_idx] && note == self.note[voice_idx];
+            let matches_voice_id = voice_id == Some(voice.voice_id);
+            let matches_note = channel == voice.channel && note == voice.note;
 
             if matches_voice_id || matches_note {
                 context.send_event(NoteEvent::VoiceTerminated {
                     timing: sample_offset,
                     // Notice how we always send the terminated voice ID here
-                    voice_id: Some(self.voice_id[voice_idx]),
-                    channel: self.channel[voice_idx],
-                    note: self.note[voice_idx],
+                    voice_id: Some(voice.voice_id),
+                    channel: voice.channel,
+                    note: voice.note,
                 });
                 voices_to_terminate[voice_idx] = true;
 
@@ -240,7 +362,7 @@ impl Voices {
         // Deactivate the voices after the loop to avoid borrow checker issues
         for (voice_idx, &should_terminate) in voices_to_terminate.iter().enumerate() {
             if should_terminate {
-                self.active[voice_idx] = false;
+                self.voices[voice_idx].active = false;
             }
         }
     }
@@ -248,6 +370,16 @@ impl Voices {
     /// Reset the voice data to initial state
     pub fn reset(&mut self) {
         *self = Self::default();
+    }
+
+    /// Get a reference to all voices for iteration
+    pub fn voices(&self) -> &[Voice] {
+        &self.voices
+    }
+
+    /// Get a mutable reference to all voices for iteration
+    pub fn voices_mut(&mut self) -> &mut [Voice] {
+        &mut self.voices
     }
 }
 

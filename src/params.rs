@@ -8,6 +8,8 @@ pub struct SinewhiskParams {
     pub amp_attack_ms: FloatParam,
     #[id = "amp_rel"]
     pub amp_release_ms: FloatParam,
+    #[id = "filter_res"]
+    pub filter_resonance: FloatParam,
 }
 
 impl Default for SinewhiskParams {
@@ -28,7 +30,7 @@ impl Default for SinewhiskParams {
 
             amp_attack_ms: FloatParam::new(
                 "Attack",
-                200.0,
+                0.0,
                 FloatRange::Skewed {
                     min: 0.0,
                     max: 2000.0,
@@ -47,6 +49,17 @@ impl Default for SinewhiskParams {
                     factor: FloatRange::skew_factor(-1.0),
                 },
             ),
+
+            filter_resonance: FloatParam::new(
+                "Filter Res",
+                50.0,
+                FloatRange::Linear {
+                    min: 1.0,
+                    max: 100.0,
+                },
+            )
+            .with_smoother(SmoothingStyle::Linear(50.0))
+            .with_unit(" Q"),
         }
     }
 }
