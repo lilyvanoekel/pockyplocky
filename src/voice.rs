@@ -1,56 +1,7 @@
 use nih_plug::prelude::*;
+use rand_pcg::Pcg32;
 
 pub const MAX_BLOCK_SIZE: usize = 64;
-
-// // Resonant filter for pinged filter effect
-// pub struct ResonantFilter {
-//     // Filter coefficients
-//     b0: f32,
-//     b1: f32,
-//     a1: f32,
-//     a2: f32,
-//     // State variables
-//     y1: f32,
-//     y2: f32,
-//     sample_rate: f32,
-// }
-
-// impl ResonantFilter {
-//     pub fn new(sample_rate: f32) -> Self {
-//         Self {
-//             b0: 0.0,
-//             b1: 0.0,
-//             a1: 0.0,
-//             a2: 0.0,
-//             y1: 0.0,
-//             y2: 0.0,
-//             sample_rate,
-//         }
-//     }
-
-//     pub fn set_frequency(&mut self, frequency: f32, resonance: f32) {
-//         let omega_0 = frequency * 2.0 * std::f32::consts::PI;
-//         let alpha = (omega_0 / self.sample_rate).sin() / (2.0 * resonance);
-//         let cosw0 = (omega_0 / self.sample_rate).cos();
-
-//         self.b0 = alpha;
-//         self.b1 = 0.0;
-//         self.a1 = -2.0 * cosw0;
-//         self.a2 = 1.0 - alpha;
-//     }
-
-//     pub fn process(&mut self, input: f32) -> f32 {
-//         let yn = self.b0 * input - self.a1 * self.y1 - self.a2 * self.y2;
-//         self.y2 = self.y1;
-//         self.y1 = yn;
-//         yn
-//     }
-
-//     pub fn reset(&mut self) {
-//         self.y1 = 0.0;
-//         self.y2 = 0.0;
-//     }
-// }
 
 pub struct ResonantFilter {
     b0: f32,
@@ -96,12 +47,37 @@ impl ResonantFilter {
         let a1 = -2.0 * cos_w0;
         let a2 = 1.0 - alpha;
 
-        self.b0 = b0 / a0;
-        self.b1 = b1 / a0;
-        self.b2 = b2 / a0;
+        // frequency-dependent scaling (6 dB per octave)
+        let scale = self.sample_rate / frequency;
+
+        self.b0 = (b0 / a0) * scale;
+        self.b1 = (b1 / a0) * scale;
+        self.b2 = (b2 / a0) * scale;
         self.a1 = a1 / a0;
         self.a2 = a2 / a0;
     }
+
+    // pub fn set_frequency(&mut self, frequency: f32, q: f32) {
+    //     let w0 = 2.0 * std::f32::consts::PI * frequency / self.sample_rate;
+    //     let cos_w0 = w0.cos();
+    //     let sin_w0 = w0.sin();
+
+    //     let alpha = sin_w0 / (2.0 * q);
+
+    //     // Constant peak gain form
+    //     let b0 = q * alpha;
+    //     let b1 = 0.0;
+    //     let b2 = -q * alpha;
+    //     let a0 = 1.0 + alpha;
+    //     let a1 = -2.0 * cos_w0;
+    //     let a2 = 1.0 - alpha;
+
+    //     self.b0 = b0 / a0;
+    //     self.b1 = b1 / a0;
+    //     self.b2 = b2 / a0;
+    //     self.a1 = a1 / a0;
+    //     self.a2 = a2 / a0;
+    // }
 
     pub fn process(&mut self, input: f32) -> f32 {
         let y = self.b0 * input + self.b1 * self.x1 + self.b2 * self.x2
@@ -121,6 +97,10 @@ impl ResonantFilter {
         self.y1 = 0.0;
         self.y2 = 0.0;
     }
+
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.sample_rate = sample_rate;
+    }
 }
 
 pub struct Voice {
@@ -138,6 +118,9 @@ pub struct Voice {
     pub filter: ResonantFilter,
     pub start_time: u32,
     pub key_held: bool,
+    pub noise_burst_duration: u32, // Duration of noise burst in samples
+    pub noise_samples_generated: u32, // How many samples of noise we've generated so far
+    pub prng: Pcg32,               // Per-voice random number generator
 }
 
 impl Default for Voice {
@@ -157,7 +140,16 @@ impl Default for Voice {
             filter: ResonantFilter::new(44100.0), // Will be set properly when voice starts
             start_time: 0,
             key_held: false,
+            noise_burst_duration: 0,
+            noise_samples_generated: 0,
+            prng: Pcg32::new(0, 0),
         }
+    }
+}
+
+impl Voice {
+    pub fn seed_prng(&mut self, seed: u64) {
+        self.prng = Pcg32::new(seed, 0);
     }
 }
 

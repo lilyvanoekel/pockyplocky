@@ -10,6 +10,8 @@ pub struct SinewhiskParams {
     pub amp_release_ms: FloatParam,
     #[id = "filter_res"]
     pub filter_resonance: FloatParam,
+    #[id = "noise_burst"]
+    pub noise_burst_ms: FloatParam,
 }
 
 impl Default for SinewhiskParams {
@@ -55,11 +57,22 @@ impl Default for SinewhiskParams {
                 50.0,
                 FloatRange::Linear {
                     min: 1.0,
-                    max: 100.0,
+                    max: 200.0,
                 },
             )
             .with_smoother(SmoothingStyle::Linear(50.0))
             .with_unit(" Q"),
+
+            noise_burst_ms: FloatParam::new(
+                "Noise Burst",
+                5.0,
+                FloatRange::Linear {
+                    min: 2.0,
+                    max: 100.0,
+                },
+            )
+            .with_smoother(SmoothingStyle::Linear(10.0))
+            .with_unit(" ms"),
         }
     }
 }

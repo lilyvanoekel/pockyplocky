@@ -96,9 +96,28 @@ impl Plugin for SineWhisk {
                                 voice.start_time = block_start as u32;
                                 voice.key_held = true;
 
-                                // Initialize filter with note frequency and resonance
+                                // Set up noise burst timing from parameter
+                                let noise_burst_duration =
+                                    (sample_rate * self.params.noise_burst_ms.value() / 1000.0)
+                                        as u32;
+                                voice.noise_burst_duration = noise_burst_duration;
+                                voice.noise_samples_generated = 0;
+
+                                // Seed the voice's PRNG with a unique seed based on note, channel, and timing
+                                let seed = (note as u64)
+                                    | ((channel as u64) << 8)
+                                    | ((timing as u64) << 16);
+                                voice.seed_prng(seed);
+
+                                // Set up very short attack envelope for filter output smoothing
+                                voice.amp_envelope.style = SmoothingStyle::Exponential(10.0);
+                                voice.amp_envelope.reset(0.0);
+                                voice.amp_envelope.set_target(sample_rate, 1.0);
+
+                                // Reset and configure filter for new note
                                 let note_freq = util::midi_note_to_freq(note);
-                                voice.filter = ResonantFilter::new(sample_rate);
+                                voice.filter.reset();
+                                voice.filter.set_sample_rate(sample_rate); // Update sample rate
                                 voice
                                     .filter
                                     .set_frequency(note_freq, self.params.filter_resonance.value());
@@ -149,27 +168,85 @@ impl Plugin for SineWhisk {
 
             let block_len = block_end - block_start;
 
+            // Fill gain buffer with smoothed values
+            let mut gain_buffer = [0.0; MAX_BLOCK_SIZE];
+            self.params
+                .gain
+                .smoothed
+                .next_block(&mut gain_buffer[..block_len], block_len);
+
+            // Update envelopes for all active voices
+            for voice in self.voices.voices_mut() {
+                if voice.active {
+                    voice
+                        .amp_envelope
+                        .next_block(&mut voice.envelope_values[..block_len], block_len);
+                }
+            }
+
             for (value_idx, sample_idx) in (block_start..block_end).enumerate() {
                 let mut sample = 0.0;
 
                 for voice in self.voices.voices_mut() {
                     if voice.active {
-                        let input = if voice.key_held {
-                            // Generate white noise only while key is held
-                            (self.prng.gen_range(0.0..1.0) * 2.0 - 1.0)
+                        let input = if voice.noise_samples_generated < voice.noise_burst_duration {
+                            // TEMPORARY: Single sample click instead of noise burst
+
+                            let v = match voice.noise_samples_generated {
+                                0 => 1.0, // first sample
+                                1 => 0.0, // second sample cancels the DC/step
+                                _ => 0.0,
+                            };
+                            voice.noise_samples_generated += 1;
+                            v
+
+                            // voice.noise_samples_generated += 1;
+                            // input_value
+
+                            // ORIGINAL NOISE BURST CODE (commented out for easy reversal):
+                            /*
+                            // Generate white noise only during the noise burst period
+                            let ramp_samples = (sample_rate * 0.001) as u32; // 1 millisecond ramp
+                            let ramp_up_end = ramp_samples.min(voice.noise_burst_duration / 2);
+                            let ramp_down_start = voice.noise_burst_duration - ramp_samples;
+
+                            let envelope_value = if voice.noise_samples_generated < ramp_up_end {
+                                // Ramp up
+                                voice.noise_samples_generated as f32 / ramp_up_end as f32
+                            } else if voice.noise_samples_generated >= ramp_down_start {
+                                // Ramp down
+                                (voice.noise_burst_duration - voice.noise_samples_generated) as f32
+                                    / ramp_samples as f32
+                            } else {
+                                // Full volume in the middle
+                                1.0
+                            };
+
+                            voice.noise_samples_generated += 1;
+                            (voice.prng.gen_range(0.0..1.0) * 2.0 - 1.0) * envelope_value
+                            */
                         } else {
-                            // No input when key is released, but filter keeps running
+                            // No input after noise burst, but filter keeps running
                             0.0
                         };
 
                         // Process through the resonant filter
                         let filtered_noise = voice.filter.process(input);
-                        sample += filtered_noise;
+
+                        // Apply envelope to filter output and mute first 2 samples
+                        let envelope_value = voice.envelope_values[value_idx];
+                        // let mute_factor = if voice.noise_samples_generated <= 2 {
+                        //     0.0
+                        // } else {
+                        //     1.0
+                        // };
+                        sample += filtered_noise * envelope_value;
                     }
                 }
 
-                output[0][sample_idx] = sample;
-                output[1][sample_idx] = sample;
+                // Apply smoothed gain parameter to control volume
+                output[0][sample_idx] = sample * gain_buffer[value_idx];
+                output[1][sample_idx] = sample * gain_buffer[value_idx];
             }
 
             let mut voices_to_terminate = [false; voice::NUM_VOICES];
