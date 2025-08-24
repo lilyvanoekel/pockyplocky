@@ -115,10 +115,8 @@ impl ModalFilter {
     }
 
     pub fn set_frequency(&mut self, fundamental_freq: f32, q: f32) {
-        // Xylophone modal frequency ratios (relative to fundamental)
-        // Based on: H1=886.9, H2=1750, H3=2670, H4=5100
-        // Assuming fundamental around 886.9 Hz
-        const MODAL_RATIOS: [f32; 4] = [1.0, 1.97, 3.01, 5.75]; // f0, f1, f2, f3 ratios
+        // Physics-based xylophone modal ratios (from 121.67 Hz fundamental)
+        const MODAL_RATIOS: [f32; 4] = [1.0, 9.0, 25.0, 49.0]; // f0, f1, f2, f3 ratios
 
         for (i, (filter, &ratio)) in self.filters.iter_mut().zip(MODAL_RATIOS.iter()).enumerate() {
             let modal_freq = fundamental_freq * ratio;
@@ -130,10 +128,10 @@ impl ModalFilter {
                 filter.set_frequency(20000.0, q);
             } else {
                 self.amplitudes[i] = match i {
-                    0 => 1.0, // Fundamental
-                    1 => 0.5, // First overtone
-                    2 => 0.3, // Second overtone
-                    3 => 0.2, // Third overtone
+                    0 => 1.000, // Fundamental
+                    1 => 0.250, // First overtone
+                    2 => 0.111, // Second overtone
+                    3 => 0.062, // Third overtone
                     _ => 0.0,
                 };
                 filter.set_frequency(modal_freq, q);

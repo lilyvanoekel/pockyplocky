@@ -1,6 +1,6 @@
 use nih_plug::prelude::*;
 
-use crate::filter::{ModalFilter, ResonantFilter};
+use crate::filter::ModalFilter;
 
 pub const MAX_BLOCK_SIZE: usize = 64;
 
