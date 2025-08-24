@@ -43,7 +43,7 @@ impl ResonantFilter {
         let a2 = 1.0 - alpha;
 
         // frequency-dependent scaling (6 dB per octave)
-        let scale = self.sample_rate / frequency;
+        let scale = 0.1 * self.sample_rate / frequency;
 
         self.b0 = (b0 / a0) * scale;
         self.b1 = (b1 / a0) * scale;
@@ -95,5 +95,72 @@ impl ResonantFilter {
 
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
+    }
+}
+
+// Modal synthesis using multiple resonant filters
+pub struct ModalFilter {
+    filters: [ResonantFilter; 4], // 4 modal filters
+    amplitudes: [f32; 4],         // Amplitude for each mode
+    sample_rate: f32,
+}
+
+impl ModalFilter {
+    pub fn new(sample_rate: f32) -> Self {
+        Self {
+            filters: std::array::from_fn(|_| ResonantFilter::new(sample_rate)),
+            amplitudes: [1.0, 0.5, 0.3, 0.2], // Default modal amplitudes
+            sample_rate,
+        }
+    }
+
+    pub fn set_frequency(&mut self, fundamental_freq: f32, q: f32) {
+        // Xylophone modal frequency ratios (relative to fundamental)
+        // Based on: H1=886.9, H2=1750, H3=2670, H4=5100
+        // Assuming fundamental around 886.9 Hz
+        const MODAL_RATIOS: [f32; 4] = [1.0, 1.97, 3.01, 5.75]; // f0, f1, f2, f3 ratios
+
+        for (i, (filter, &ratio)) in self.filters.iter_mut().zip(MODAL_RATIOS.iter()).enumerate() {
+            let modal_freq = fundamental_freq * ratio;
+            filter.set_sample_rate(self.sample_rate);
+
+            // Disable modes above 20kHz or set amplitude to 0
+            if modal_freq > 20000.0 {
+                self.amplitudes[i] = 0.0;
+                filter.set_frequency(20000.0, q);
+            } else {
+                self.amplitudes[i] = match i {
+                    0 => 1.0, // Fundamental
+                    1 => 0.5, // First overtone
+                    2 => 0.3, // Second overtone
+                    3 => 0.2, // Third overtone
+                    _ => 0.0,
+                };
+                filter.set_frequency(modal_freq, q);
+            }
+        }
+    }
+
+    pub fn process(&mut self, input: f32) -> f32 {
+        let mut output = 0.0;
+
+        for (filter, &amplitude) in self.filters.iter_mut().zip(self.amplitudes.iter()) {
+            output += filter.process(input) * amplitude;
+        }
+
+        output
+    }
+
+    pub fn reset(&mut self) {
+        for filter in &mut self.filters {
+            filter.reset();
+        }
+    }
+
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.sample_rate = sample_rate;
+        for filter in &mut self.filters {
+            filter.set_sample_rate(sample_rate);
+        }
     }
 }

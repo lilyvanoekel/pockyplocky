@@ -1,6 +1,6 @@
 use nih_plug::prelude::*;
 
-use crate::filter::ResonantFilter;
+use crate::filter::{ModalFilter, ResonantFilter};
 
 pub const MAX_BLOCK_SIZE: usize = 64;
 
@@ -14,7 +14,7 @@ pub struct Voice {
     pub releasing: bool,
     pub amp_envelope: Smoother<f32>,
     pub envelope_values: [f32; MAX_BLOCK_SIZE],
-    pub filter: ResonantFilter,
+    pub filter: ModalFilter,
     pub start_time: u32,
     pub trigger: bool,        // True for the first sample after note trigger
     pub silence_counter: u32, // Count of consecutive samples below threshold
@@ -32,7 +32,7 @@ impl Default for Voice {
             releasing: false,
             amp_envelope: Smoother::none(),
             envelope_values: [0.0; MAX_BLOCK_SIZE],
-            filter: ResonantFilter::new(44100.0), // Will be set properly when voice starts
+            filter: ModalFilter::new(44100.0), // Will be set properly when voice starts
             start_time: 0,
             trigger: false,
             silence_counter: 0,

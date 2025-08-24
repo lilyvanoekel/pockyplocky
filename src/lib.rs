@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 mod filter;
 mod params;
+mod physics;
 mod voice;
 use params::SinewhiskParams;
 use voice::{MAX_BLOCK_SIZE, Voices};
@@ -97,7 +98,7 @@ impl Plugin for Pockyplocky {
                                 voice.amp_envelope.reset(0.0);
                                 voice.amp_envelope.set_target(sample_rate, 1.0);
 
-                                // Reset and configure filter for new note
+                                // Reset and configure modal filter for new note
                                 let note_freq = util::midi_note_to_freq(note);
                                 voice.filter.reset();
                                 voice.filter.set_sample_rate(sample_rate); // Update sample rate
