@@ -102,9 +102,19 @@ impl Plugin for Pockyplocky {
                                 let note_freq = util::midi_note_to_freq(note);
                                 voice.filter.reset();
                                 voice.filter.set_sample_rate(sample_rate); // Update sample rate
-                                voice
-                                    .filter
-                                    .set_frequency(note_freq, self.params.filter_resonance.value());
+
+                                let amplitudes = [
+                                    self.params.mode0_amplitude.value(),
+                                    self.params.mode1_amplitude.value(),
+                                    self.params.mode2_amplitude.value(),
+                                    self.params.mode3_amplitude.value(),
+                                ];
+
+                                voice.filter.set_frequency(
+                                    note_freq,
+                                    self.params.filter_resonance.value(),
+                                    amplitudes,
+                                );
                             }
                             NoteEvent::Choke {
                                 timing,

@@ -114,9 +114,10 @@ impl ModalFilter {
         }
     }
 
-    pub fn set_frequency(&mut self, fundamental_freq: f32, q: f32) {
-        // Physics-based xylophone modal ratios (from 121.67 Hz fundamental)
-        const MODAL_RATIOS: [f32; 4] = [1.0, 9.0, 25.0, 49.0]; // f0, f1, f2, f3 ratios
+    pub fn set_frequency(&mut self, fundamental_freq: f32, q: f32, amplitudes: [f32; 4]) {
+        // Xylophone modal frequency ratios (relative to fundamental)
+        // Based on: 480, 968, 1424, 2870 Hz
+        const MODAL_RATIOS: [f32; 4] = [1.0, 2.017, 2.967, 5.979]; // f0, f1, f2, f3 ratios
 
         for (i, (filter, &ratio)) in self.filters.iter_mut().zip(MODAL_RATIOS.iter()).enumerate() {
             let modal_freq = fundamental_freq * ratio;
@@ -127,13 +128,28 @@ impl ModalFilter {
                 self.amplitudes[i] = 0.0;
                 filter.set_frequency(20000.0, q);
             } else {
-                self.amplitudes[i] = match i {
-                    0 => 1.000, // Fundamental
-                    1 => 0.250, // First overtone
-                    2 => 0.111, // Second overtone
-                    3 => 0.062, // Third overtone
-                    _ => 0.0,
-                };
+                self.amplitudes[i] = amplitudes[i];
+                filter.set_frequency(modal_freq, q);
+            }
+        }
+    }
+
+    pub fn set_physics_frequency(
+        &mut self,
+        fundamental_freq: f32,
+        q: f32,
+        modes: &[crate::physics::Mode; 4],
+    ) {
+        for (i, (filter, mode)) in self.filters.iter_mut().zip(modes.iter()).enumerate() {
+            let modal_freq = mode.freq as f32;
+            filter.set_sample_rate(self.sample_rate);
+
+            // Disable modes above 20kHz or set amplitude to 0
+            if modal_freq > 20000.0 {
+                self.amplitudes[i] = 0.0;
+                filter.set_frequency(20000.0, q);
+            } else {
+                self.amplitudes[i] = mode.amp as f32;
                 filter.set_frequency(modal_freq, q);
             }
         }

@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, Copy, PartialEq)]
+use nih_plug::prelude::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Enum)]
 pub enum Material {
     Rosewood,
     Maple,

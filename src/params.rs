@@ -6,6 +6,14 @@ pub struct SinewhiskParams {
     pub gain: FloatParam,
     #[id = "filter_res"]
     pub filter_resonance: FloatParam,
+    #[id = "mode0_amp"]
+    pub mode0_amplitude: FloatParam,
+    #[id = "mode1_amp"]
+    pub mode1_amplitude: FloatParam,
+    #[id = "mode2_amp"]
+    pub mode2_amplitude: FloatParam,
+    #[id = "mode3_amp"]
+    pub mode3_amplitude: FloatParam,
 }
 
 impl Default for SinewhiskParams {
@@ -34,6 +42,34 @@ impl Default for SinewhiskParams {
             )
             .with_smoother(SmoothingStyle::Linear(50.0))
             .with_unit(" Q"),
+
+            mode0_amplitude: FloatParam::new(
+                "Mode 0 Amp",
+                1.0, // Fundamental (480 Hz, 0 dB)
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_smoother(SmoothingStyle::Linear(50.0)),
+
+            mode1_amplitude: FloatParam::new(
+                "Mode 1 Amp",
+                0.0316, // 968 Hz, -30 dB
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_smoother(SmoothingStyle::Linear(50.0)),
+
+            mode2_amplitude: FloatParam::new(
+                "Mode 2 Amp",
+                0.1, // 1424 Hz, -20 dB
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_smoother(SmoothingStyle::Linear(50.0)),
+
+            mode3_amplitude: FloatParam::new(
+                "Mode 3 Amp",
+                0.178, // 2870 Hz, -15 dB
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_smoother(SmoothingStyle::Linear(50.0)),
         }
     }
 }
