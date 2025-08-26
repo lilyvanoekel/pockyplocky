@@ -145,8 +145,8 @@ impl ModalResonator {
 
 // Modal synthesis using multiple resonant filters
 pub struct ModalFilter {
-    filters: [ModalResonator; 4], // 4 modal filters
-    amplitudes: [f32; 4],         // Amplitude for each mode
+    filters: [ModalResonator; 8], // 4 modal filters
+    amplitudes: [f32; 8],         // Amplitude for each mode
     sample_rate: f32,
 }
 
@@ -154,7 +154,7 @@ impl ModalFilter {
     pub fn new(sample_rate: f32) -> Self {
         Self {
             filters: std::array::from_fn(|_| ModalResonator::new(sample_rate)),
-            amplitudes: [1.0, 0.5, 0.3, 0.2], // Default modal amplitudes
+            amplitudes: [1.0, 0.5, 0.3, 0.2, 0.0, 0.0, 0.0, 0.0], // Default modal amplitudes
             sample_rate,
         }
     }
@@ -175,6 +175,21 @@ impl ModalFilter {
             } else {
                 self.amplitudes[i] = amplitudes[i];
                 filter.set_mode(modal_freq, 1.0);
+            }
+        }
+    }
+
+    pub fn set_modes(&mut self, modes: &[crate::data::Mode; 8]) {
+        for (i, (filter, mode)) in self.filters.iter_mut().zip(modes.iter()).enumerate() {
+            filter.set_sample_rate(self.sample_rate);
+
+            // Disable modes above 20kHz or set amplitude to 0
+            if mode.f > 20000.0 {
+                self.amplitudes[i] = 0.0;
+                filter.set_mode(20000.0, 1.0);
+            } else {
+                self.amplitudes[i] = mode.amp;
+                filter.set_mode(mode.f, mode.t60);
             }
         }
     }

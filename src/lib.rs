@@ -1,12 +1,26 @@
 use nih_plug::prelude::*;
 use std::sync::Arc;
 
+mod data;
 mod filter;
 mod params;
-mod physics;
 mod voice;
-use params::SinewhiskParams;
+use params::{Material, SinewhiskParams};
 use voice::{MAX_BLOCK_SIZE, Voices};
+
+use crate::data::{GLASS_MODES, METAL_MODES, Mode, WOOD_MODES};
+
+pub fn get_modes(midi_note: u8, material: Material) -> Option<&'static [Mode; 8]> {
+    if midi_note < 21 || midi_note > 108 {
+        return None;
+    }
+    let index = (midi_note - 21) as usize;
+    match material {
+        Material::Wood => Some(&WOOD_MODES[index]),
+        Material::Glass => Some(&GLASS_MODES[index]),
+        Material::Metal => Some(&METAL_MODES[index]),
+    }
+}
 
 struct Pockyplocky {
     params: Arc<SinewhiskParams>,
@@ -110,11 +124,17 @@ impl Plugin for Pockyplocky {
                                     self.params.mode3_amplitude.value(),
                                 ];
 
-                                voice.filter.set_frequency(
-                                    note_freq,
-                                    self.params.filter_resonance.value(),
-                                    amplitudes,
-                                );
+                                // voice.filter.set_frequency(
+                                //     note_freq,
+                                //     self.params.filter_resonance.value(),
+                                //     amplitudes,
+                                // );
+
+                                let mode = get_modes(note, self.params.material.value());
+
+                                if let Some(m) = mode {
+                                    voice.filter.set_modes(m);
+                                }
                             }
                             NoteEvent::Choke {
                                 timing,

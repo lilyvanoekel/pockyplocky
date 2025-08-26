@@ -4,6 +4,8 @@ use nih_plug::prelude::*;
 pub struct SinewhiskParams {
     #[id = "gain"]
     pub gain: FloatParam,
+    #[id = "material"]
+    pub material: EnumParam<Material>,
     #[id = "filter_res"]
     pub filter_resonance: FloatParam,
     #[id = "mode0_amp"]
@@ -14,6 +16,16 @@ pub struct SinewhiskParams {
     pub mode2_amplitude: FloatParam,
     #[id = "mode3_amp"]
     pub mode3_amplitude: FloatParam,
+}
+
+#[derive(Enum, Debug, Clone, Copy, PartialEq)]
+pub enum Material {
+    #[name = "Wood"]
+    Wood,
+    #[name = "Glass"]
+    Glass,
+    #[name = "Metal"]
+    Metal,
 }
 
 impl Default for SinewhiskParams {
@@ -31,6 +43,8 @@ impl Default for SinewhiskParams {
             .with_unit(" dB")
             .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
+
+            material: EnumParam::new("Material", Material::Wood),
 
             filter_resonance: FloatParam::new(
                 "Filter Res",
