@@ -3,12 +3,14 @@ use std::sync::Arc;
 
 mod data;
 mod filter;
+mod noise;
 mod params;
 mod voice;
 use params::{Material, SinewhiskParams};
 use voice::{MAX_BLOCK_SIZE, Voices};
 
 use crate::data::{GLASS_MODES, METAL_MODES, Mode, WOOD_MODES};
+use crate::noise::NOISE_BURST;
 
 pub fn get_modes(midi_note: u8, material: Material) -> Option<&'static [Mode; 8]> {
     if midi_note < 21 || midi_note > 108 {
@@ -21,6 +23,21 @@ pub fn get_modes(midi_note: u8, material: Material) -> Option<&'static [Mode; 8]
         Material::Metal => Some(&METAL_MODES[index]),
     }
 }
+
+// For velocity handling later
+// pub fn excite_modes<const N: usize>(
+//     modes: &[Mode; N],
+//     strike_pos: f32,
+//     strike_strength: f32,
+// ) -> [f32; N] {
+//     let mut result = [0.0; N];
+//     for (i, m) in modes.iter().enumerate() {
+//         let n = i + 1;
+//         let shape = (std::f32::consts::PI * n as f32 * strike_pos).sin().abs();
+//         result[i] = strike_strength * m.amp * shape;
+//     }
+//     result
+// }
 
 struct Pockyplocky {
     params: Arc<SinewhiskParams>,
@@ -117,6 +134,20 @@ impl Plugin for Pockyplocky {
                                 voice.filter.reset();
                                 voice.filter.set_sample_rate(sample_rate); // Update sample rate
 
+                                // Set up velocity-dependent noise burst duration (2ms to 7ms)
+                                let velocity_normalized = velocity.sqrt(); // velocity is already 0.0-1.0
+                                let material = self.params.material.value();
+                                let max_duration = match material {
+                                    Material::Wood => 3.0,
+                                    Material::Glass => 6.0,
+                                    Material::Metal => 12.0,
+                                };
+                                let noise_duration_ms =
+                                    2.0 + (velocity_normalized * (max_duration - 2.0));
+                                voice.noise_duration =
+                                    (sample_rate * noise_duration_ms * 0.001) as usize;
+                                voice.noise_index = 0;
+
                                 let amplitudes = [
                                     self.params.mode0_amplitude.value(),
                                     self.params.mode1_amplitude.value(),
@@ -187,17 +218,20 @@ impl Plugin for Pockyplocky {
                         continue;
                     }
 
-                    let input = if voice.trigger {
-                        voice.trigger = false;
-                        1.0
+                    let envelope_value = voice.envelope_values[value_idx];
+
+                    let input = if voice.noise_index < voice.noise_duration {
+                        // Get noise sample, loop the table if needed
+                        let noise_sample = NOISE_BURST[voice.noise_index % NOISE_BURST.len()];
+                        voice.noise_index += 1;
+                        noise_sample * voice.velocity_sqrt * envelope_value
                     } else {
                         0.0
                     };
 
                     // Process through the resonant filter
                     let filtered_noise = voice.filter.process(input);
-                    let envelope_value = voice.envelope_values[value_idx];
-                    let voice_sample = filtered_noise * envelope_value * gain_buffer[value_idx];
+                    let voice_sample = filtered_noise * gain_buffer[value_idx];
                     sample += voice_sample;
 
                     // Count consecutive zero samples for voice termination

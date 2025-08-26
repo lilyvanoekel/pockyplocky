@@ -16,8 +16,10 @@ pub struct Voice {
     pub envelope_values: [f32; MAX_BLOCK_SIZE],
     pub filter: ModalFilter,
     pub start_time: u32,
-    pub trigger: bool,        // True for the first sample after note trigger
-    pub silence_counter: u32, // Count of consecutive samples below threshold
+    pub trigger: bool,         // True for the first sample after note trigger
+    pub silence_counter: u32,  // Count of consecutive samples below threshold
+    pub noise_index: usize,    // Current position in noise burst
+    pub noise_duration: usize, // Duration of noise burst in samples
 }
 
 impl Default for Voice {
@@ -36,6 +38,8 @@ impl Default for Voice {
             start_time: 0,
             trigger: false,
             silence_counter: 0,
+            noise_index: 0,
+            noise_duration: 0,
         }
     }
 }
