@@ -6,11 +6,12 @@ mod filter;
 mod noise;
 mod params;
 mod voice;
+mod voice_manager;
 use params::{Material, SinewhiskParams};
-use voice::{MAX_BLOCK_SIZE, Voices};
+use voice::MAX_BLOCK_SIZE;
+use voice_manager::VoiceManager;
 
 use crate::data::{GLASS_MODES, METAL_MODES, Mode, WOOD_MODES};
-use crate::noise::NOISE_BURST;
 
 pub fn get_modes(midi_note: u8, material: Material) -> Option<&'static [Mode; 8]> {
     if midi_note < 21 || midi_note > 108 {
@@ -41,14 +42,14 @@ pub fn get_modes(midi_note: u8, material: Material) -> Option<&'static [Mode; 8]
 
 struct Pockyplocky {
     params: Arc<SinewhiskParams>,
-    voices: Voices,
+    voices: VoiceManager,
 }
 
 impl Default for Pockyplocky {
     fn default() -> Self {
         Self {
             params: Arc::new(SinewhiskParams::default()),
-            voices: Voices::default(),
+            voices: VoiceManager::default(),
         }
     }
 }
@@ -79,9 +80,11 @@ impl Plugin for Pockyplocky {
     fn initialize(
         &mut self,
         _audio_io_layout: &AudioIOLayout,
-        _buffer_config: &BufferConfig,
+        buffer_config: &BufferConfig,
         _context: &mut impl InitContext<Self>,
     ) -> bool {
+        let sample_rate = buffer_config.sample_rate;
+        self.voices.set_sample_rate(sample_rate);
         true
     }
 
@@ -96,7 +99,6 @@ impl Plugin for Pockyplocky {
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
         let num_samples = buffer.samples();
-        let sample_rate = context.transport().sample_rate;
         let output = buffer.as_slice();
 
         let mut next_event = context.next_event();
@@ -119,52 +121,18 @@ impl Plugin for Pockyplocky {
                                     .voices
                                     .start_voice(context, timing, voice_id, channel, note);
                                 let voice = &mut self.voices.voices_mut()[s];
-                                voice.velocity_sqrt = velocity.sqrt();
-                                voice.start_time = block_start as u32;
-                                voice.trigger = true;
-                                voice.silence_counter = 0;
 
-                                // Set up very short attack envelope for filter output smoothing
-                                voice.amp_envelope.style = SmoothingStyle::Exponential(10.0);
-                                voice.amp_envelope.reset(0.0);
-                                voice.amp_envelope.set_target(sample_rate, 1.0);
-
-                                // Reset and configure modal filter for new note
-                                let note_freq = util::midi_note_to_freq(note);
-                                voice.filter.reset();
-                                voice.filter.set_sample_rate(sample_rate); // Update sample rate
-
-                                // Set up velocity-dependent noise burst duration (2ms to 7ms)
-                                let velocity_normalized = velocity.sqrt(); // velocity is already 0.0-1.0
-                                let material = self.params.material.value();
-                                let max_duration = match material {
-                                    Material::Wood => 3.0,
-                                    Material::Glass => 6.0,
-                                    Material::Metal => 12.0,
-                                };
-                                let noise_duration_ms =
-                                    2.0 + (velocity_normalized * (max_duration - 2.0));
-                                voice.noise_duration =
-                                    (sample_rate * noise_duration_ms * 0.001) as usize;
-                                voice.noise_index = 0;
-
-                                let amplitudes = [
-                                    self.params.mode0_amplitude.value(),
-                                    self.params.mode1_amplitude.value(),
-                                    self.params.mode2_amplitude.value(),
-                                    self.params.mode3_amplitude.value(),
-                                ];
-
-                                // voice.filter.set_frequency(
-                                //     note_freq,
-                                //     self.params.filter_resonance.value(),
-                                //     amplitudes,
-                                // );
-
-                                let mode = get_modes(note, self.params.material.value());
-
-                                if let Some(m) = mode {
-                                    voice.filter.set_modes(m);
+                                let modes = get_modes(note, self.params.material.value());
+                                if let Some(m) = modes {
+                                    voice.start(
+                                        voice.voice_id,
+                                        voice.channel,
+                                        voice.note,
+                                        voice.internal_voice_id,
+                                        velocity,
+                                        m,
+                                        self.params.material.value(),
+                                    );
                                 }
                             }
                             NoteEvent::Choke {
@@ -201,57 +169,28 @@ impl Plugin for Pockyplocky {
                 .smoothed
                 .next_block(&mut gain_buffer[..block_len], block_len);
 
-            // Update envelopes for all active voices
+            // Process all voices
+            let mut sample_buffer = [0.0; MAX_BLOCK_SIZE];
             for voice in self.voices.voices_mut() {
-                if voice.active {
-                    voice
-                        .amp_envelope
-                        .next_block(&mut voice.envelope_values[..block_len], block_len);
+                let voice_samples = voice.process_block(&gain_buffer[..block_len], block_len);
+                for i in 0..block_len {
+                    sample_buffer[i] += voice_samples[i];
+                }
+
+                // Check for voice termination
+                if voice.active && voice.is_finished() {
+                    context.send_event(NoteEvent::VoiceTerminated {
+                        timing: block_end as u32,
+                        voice_id: Some(voice.voice_id),
+                        channel: voice.channel,
+                        note: voice.note,
+                    });
+                    voice.active = false;
                 }
             }
 
-            for (value_idx, sample_idx) in (block_start..block_end).enumerate() {
-                let mut sample = 0.0;
-
-                for voice in self.voices.voices_mut() {
-                    if !voice.active {
-                        continue;
-                    }
-
-                    let envelope_value = voice.envelope_values[value_idx];
-
-                    let input = if voice.noise_index < voice.noise_duration {
-                        // Get noise sample, loop the table if needed
-                        let noise_sample = NOISE_BURST[voice.noise_index % NOISE_BURST.len()];
-                        voice.noise_index += 1;
-                        noise_sample * voice.velocity_sqrt * envelope_value
-                    } else {
-                        0.0
-                    };
-
-                    // Process through the resonant filter
-                    let filtered_noise = voice.filter.process(input);
-                    let voice_sample = filtered_noise * gain_buffer[value_idx];
-                    sample += voice_sample;
-
-                    // Count consecutive zero samples for voice termination
-                    if voice_sample == 0.0 {
-                        voice.silence_counter += 1;
-
-                        if voice.silence_counter > 1000 {
-                            context.send_event(NoteEvent::VoiceTerminated {
-                                timing: block_end as u32,
-                                voice_id: Some(voice.voice_id),
-                                channel: voice.channel,
-                                note: voice.note,
-                            });
-                            voice.active = false;
-                        }
-                    } else {
-                        voice.silence_counter = 0;
-                    }
-                }
-
+            // Apply to both channels
+            for (sample_idx, &sample) in (block_start..block_end).zip(sample_buffer.iter()) {
                 output[0][sample_idx] = sample;
                 output[1][sample_idx] = sample;
             }

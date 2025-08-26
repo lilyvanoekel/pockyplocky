@@ -16,10 +16,12 @@ pub struct Voice {
     pub envelope_values: [f32; MAX_BLOCK_SIZE],
     pub filter: ModalFilter,
     pub start_time: u32,
-    pub trigger: bool,         // True for the first sample after note trigger
-    pub silence_counter: u32,  // Count of consecutive samples below threshold
-    pub noise_index: usize,    // Current position in noise burst
+    pub silence_counter: u32, // Count of consecutive samples below threshold
+    pub noise_index: usize,   // Current position in noise burst
     pub noise_duration: usize, // Duration of noise burst in samples
+    pub sample_rate: f32,     // Current sample rate
+    pub total_duration: usize, // Total duration based on longest mode decay time
+    pub sample_count: usize,  // Current sample count since start
 }
 
 impl Default for Voice {
@@ -34,196 +36,114 @@ impl Default for Voice {
             releasing: false,
             amp_envelope: Smoother::none(),
             envelope_values: [0.0; MAX_BLOCK_SIZE],
-            filter: ModalFilter::new(44100.0), // Will be set properly when voice starts
+            filter: ModalFilter::new(44100.0),
             start_time: 0,
-            trigger: false,
             silence_counter: 0,
             noise_index: 0,
             noise_duration: 0,
+            sample_rate: 44100.0,
+            total_duration: 0,
+            sample_count: 0,
         }
     }
 }
 
-pub const NUM_VOICES: usize = 16;
-
-pub struct Voices {
-    voices: [Voice; NUM_VOICES],
-    next_internal_voice_id: u64,
-}
-
-impl Default for Voices {
-    fn default() -> Self {
-        Self {
-            voices: std::array::from_fn(|_| Voice::default()),
-            next_internal_voice_id: 0,
-        }
-    }
-}
-
-impl Voices {
-    /// Find a free voice slot
-    pub fn find_free_slot(&self) -> Option<usize> {
-        self.voices.iter().position(|voice| !voice.active)
+impl Voice {
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.sample_rate = sample_rate;
+        self.filter.set_sample_rate(sample_rate);
     }
 
-    /// Find the oldest voice slot (lowest internal_voice_id)
-    pub fn find_oldest_slot(&self) -> Option<usize> {
-        self.voices
-            .iter()
-            .enumerate()
-            .filter(|(_, voice)| voice.active)
-            .min_by_key(|(_, voice)| voice.internal_voice_id)
-            .map(|(idx, _)| idx)
-    }
-
-    /// Initialize a voice slot with the given data
-    pub fn init_voice(
+    pub fn start(
         &mut self,
-        slot: usize,
         voice_id: i32,
         channel: u8,
         note: u8,
         internal_voice_id: u64,
-        velocity_sqrt: f32,
-        amp_envelope: Smoother<f32>,
+        velocity: f32,
+        modes: &[crate::data::Mode; 8],
+        material: crate::params::Material,
     ) {
-        let voice = &mut self.voices[slot];
-        voice.active = true;
-        voice.voice_id = voice_id;
-        voice.channel = channel;
-        voice.note = note;
-        voice.internal_voice_id = internal_voice_id;
-        voice.velocity_sqrt = velocity_sqrt;
-        voice.releasing = false;
-        voice.amp_envelope = amp_envelope;
-    }
+        self.voice_id = voice_id;
+        self.channel = channel;
+        self.note = note;
+        self.internal_voice_id = internal_voice_id;
+        self.velocity_sqrt = velocity.sqrt();
+        self.noise_index = 0;
+        self.silence_counter = 0;
+        self.start_time = 0;
+        self.sample_count = 0;
 
-    /// Deactivate a voice slot
-    pub fn deactivate_voice(&mut self, slot: usize) {
-        self.voices[slot].active = false;
-    }
+        let velocity_normalized = velocity.sqrt();
+        let max_duration = match material {
+            crate::params::Material::Wood => 3.0,
+            crate::params::Material::Glass => 6.0,
+            crate::params::Material::Metal => 12.0,
+        };
+        let noise_duration_ms = 2.0 + (velocity_normalized * (max_duration - 2.0));
+        self.noise_duration = (self.sample_rate * noise_duration_ms * 0.001) as usize;
 
-    /// Get voice data for a specific slot (for debugging/logging)
-    pub fn get_voice_info(&self, slot: usize) -> Option<(i32, u8, u8)> {
-        let voice = &self.voices[slot];
-        if voice.active {
-            Some((voice.voice_id, voice.channel, voice.note))
-        } else {
-            None
+        // Calculate total duration based on the longest mode decay time
+        let mut max_decay_time = 0.0;
+        for mode in modes {
+            if mode.t60 > max_decay_time {
+                max_decay_time = mode.t60;
+            }
         }
+        self.total_duration = (self.sample_rate * max_decay_time) as usize;
+
+        // Configure modal filter
+        self.filter.reset();
+        self.filter.set_modes(modes);
+
+        // Set up envelope
+        self.amp_envelope.style = nih_plug::prelude::SmoothingStyle::Exponential(10.0);
+        self.amp_envelope.reset(0.0);
+        self.amp_envelope.set_target(self.sample_rate, 1.0);
+
+        self.active = true;
     }
 
-    /// Start a new voice with the given voice ID. If all voices are currently in use, the oldest
-    /// voice will be stolen. Returns the slot index of the new voice.
-    pub fn start_voice(
+    pub fn process_block(
         &mut self,
-        context: &mut impl ProcessContext<crate::Pockyplocky>,
-        sample_offset: u32,
-        voice_id: Option<i32>,
-        channel: u8,
-        note: u8,
-    ) -> usize {
-        let actual_voice_id = voice_id.unwrap_or_else(|| compute_fallback_voice_id(note, channel));
-        self.next_internal_voice_id = self.next_internal_voice_id.wrapping_add(1);
+        gain_buffer: &[f32],
+        block_len: usize,
+    ) -> [f32; MAX_BLOCK_SIZE] {
+        let mut output = [0.0; MAX_BLOCK_SIZE];
 
-        match self.find_free_slot() {
-            Some(free_voice_idx) => {
-                // Initialize with default values, will be set properly in the calling code
-                self.init_voice(
-                    free_voice_idx,
-                    actual_voice_id,
-                    channel,
-                    note,
-                    self.next_internal_voice_id,
-                    1.0,
-                    Smoother::none(),
-                );
-                free_voice_idx
-            }
-            None => {
-                let oldest_slot = self.find_oldest_slot().unwrap();
-
-                {
-                    let oldest_voice_info = self.get_voice_info(oldest_slot).unwrap();
-                    context.send_event(NoteEvent::VoiceTerminated {
-                        timing: sample_offset,
-                        voice_id: Some(oldest_voice_info.0),
-                        channel: oldest_voice_info.1,
-                        note: oldest_voice_info.2,
-                    });
-                }
-
-                self.deactivate_voice(oldest_slot);
-                self.init_voice(
-                    oldest_slot,
-                    actual_voice_id,
-                    channel,
-                    note,
-                    self.next_internal_voice_id,
-                    1.0,
-                    Smoother::none(),
-                );
-                oldest_slot
-            }
+        if !self.active {
+            return output;
         }
-    }
 
-    /// Immediately terminate one or more voice, removing it from the pool and informing the host
-    /// that the voice has ended. If `voice_id` is not provided, then this will terminate all
-    /// matching voices.
-    pub fn choke_voices(
-        &mut self,
-        context: &mut impl ProcessContext<crate::Pockyplocky>,
-        sample_offset: u32,
-        voice_id: Option<i32>,
-        channel: u8,
-        note: u8,
-    ) {
-        let mut voices_to_terminate = [false; NUM_VOICES];
-        for (voice_idx, voice) in self.voices.iter().enumerate() {
-            if !voice.active {
-                continue;
-            }
+        // Update envelope
+        self.amp_envelope
+            .next_block(&mut self.envelope_values[..block_len], block_len);
 
-            let matches_voice_id = voice_id == Some(voice.voice_id);
-            let matches_note = channel == voice.channel && note == voice.note;
+        for i in 0..block_len {
+            let envelope_value = self.envelope_values[i];
 
-            if matches_voice_id || matches_note {
-                context.send_event(NoteEvent::VoiceTerminated {
-                    timing: sample_offset,
-                    // Notice how we always send the terminated voice ID here
-                    voice_id: Some(voice.voice_id),
-                    channel: voice.channel,
-                    note: voice.note,
-                });
-                voices_to_terminate[voice_idx] = true;
+            let input = if self.noise_index < self.noise_duration {
+                // Get noise sample, loop the table if needed
+                let noise_sample =
+                    crate::noise::NOISE_BURST[self.noise_index % crate::noise::NOISE_BURST.len()];
+                self.noise_index += 1;
+                noise_sample * self.velocity_sqrt * envelope_value
+            } else {
+                0.0
+            };
 
-                if voice_id.is_some() {
-                    break;
-                }
-            }
+            // Process through the resonant filter
+            let filtered_noise = self.filter.process(input);
+            let voice_sample = filtered_noise * gain_buffer[i];
+            output[i] = voice_sample;
+
+            self.sample_count += 1;
         }
-        // Deactivate the voices after the loop to avoid borrow checker issues
-        for (voice_idx, &should_terminate) in voices_to_terminate.iter().enumerate() {
-            if should_terminate {
-                self.voices[voice_idx].active = false;
-            }
-        }
+
+        output
     }
 
-    /// Reset the voice data to initial state
-    pub fn reset(&mut self) {
-        *self = Self::default();
+    pub fn is_finished(&self) -> bool {
+        self.sample_count >= self.total_duration
     }
-
-    /// Get a mutable reference to all voices for iteration
-    pub fn voices_mut(&mut self) -> &mut [Voice] {
-        &mut self.voices
-    }
-}
-
-// Compute a voice ID in case the host doesn't provide them. Polyphonic modulation will not work in
-// this case, but playing notes will.
-const fn compute_fallback_voice_id(note: u8, channel: u8) -> i32 {
-    note as i32 | ((channel as i32) << 16)
 }
