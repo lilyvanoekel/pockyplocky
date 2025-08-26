@@ -80,6 +80,35 @@ impl ModalFilter {
         }
     }
 
+    pub fn set_frequency(&mut self, fundamental_freq: f32) {
+        // Base modal frequencies (for A4 = 440Hz)
+        const BASE_FREQS: [f32; 8] = [
+            488.42, 1414.28, 2587.91, 2848.72, 4270.11, 4883.01, 5156.85, 5834.95,
+        ];
+        const MODAL_AMPS: [f32; 8] = [0.595, 0.115, 0.083, 1.000, 0.133, 0.044, 0.180, 0.338];
+        const MODAL_DECAYS: [f32; 8] = [0.461, 0.085, 0.063, 0.044, 0.018, 0.075, 0.023, 0.022];
+
+        // Scale factor based on fundamental frequency
+        let scale_factor = fundamental_freq / 488.42;
+
+        for i in 0..8 {
+            let freq = BASE_FREQS[i] * scale_factor;
+            let amp = MODAL_AMPS[i];
+            let decay = MODAL_DECAYS[i];
+
+            self.filters[i].set_sample_rate(self.sample_rate);
+
+            // Disable modes above 20kHz or set amplitude to 0
+            if freq > 20000.0 {
+                self.amplitudes[i] = 0.0;
+                self.filters[i].set_mode(20000.0, 1.0);
+            } else {
+                self.amplitudes[i] = amp;
+                self.filters[i].set_mode(freq, decay);
+            }
+        }
+    }
+
     pub fn process(&mut self, input: f32) -> f32 {
         let mut output = 0.0;
 
