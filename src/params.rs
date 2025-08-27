@@ -1,7 +1,7 @@
 use nih_plug::prelude::*;
 
 #[derive(Params)]
-pub struct SinewhiskParams {
+pub struct PockyplockyParams {
     #[id = "gain"]
     pub gain: FloatParam,
     #[id = "material"]
@@ -14,6 +14,8 @@ pub struct SinewhiskParams {
     pub noise_decay: FloatParam,
     #[id = "decay"]
     pub decay: FloatParam,
+    #[id = "click"]
+    pub click: BoolParam,
 }
 
 #[derive(Enum, Debug, Clone, Copy, PartialEq)]
@@ -26,7 +28,7 @@ pub enum Material {
     Metal,
 }
 
-impl Default for SinewhiskParams {
+impl Default for PockyplockyParams {
     fn default() -> Self {
         Self {
             gain: FloatParam::new(
@@ -75,6 +77,8 @@ impl Default for SinewhiskParams {
 
             decay: FloatParam::new("Decay", 0.461, FloatRange::Linear { min: 0.1, max: 2.0 })
                 .with_unit(" s"),
+
+            click: BoolParam::new("Click", true),
         }
     }
 }

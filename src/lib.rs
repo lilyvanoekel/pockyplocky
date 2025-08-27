@@ -2,28 +2,31 @@ use nih_plug::prelude::*;
 use std::sync::Arc;
 
 mod data;
-mod filter;
-mod noise;
+mod envelope;
+mod exciter;
+mod modes;
 mod params;
+mod resonator;
 mod voice;
 mod voice_manager;
-use params::{Material, SinewhiskParams};
+
+use params::PockyplockyParams;
 use voice::MAX_BLOCK_SIZE;
 use voice_manager::VoiceManager;
 
-use crate::data::{GLASS_MODES, METAL_MODES, Mode, WOOD_MODES};
+// use crate::data::{GLASS_MODES, METAL_MODES, Mode, WOOD_MODES};
 
-pub fn get_modes(midi_note: u8, material: Material) -> Option<&'static [Mode; 8]> {
-    if midi_note < 21 || midi_note > 108 {
-        return None;
-    }
-    let index = (midi_note - 21) as usize;
-    match material {
-        Material::Wood => Some(&WOOD_MODES[index]),
-        Material::Glass => Some(&GLASS_MODES[index]),
-        Material::Metal => Some(&METAL_MODES[index]),
-    }
-}
+// pub fn get_modes(midi_note: u8, material: Material) -> Option<&'static [Mode; 8]> {
+//     if midi_note < 21 || midi_note > 108 {
+//         return None;
+//     }
+//     let index = (midi_note - 21) as usize;
+//     match material {
+//         Material::Wood => Some(&WOOD_MODES[index]),
+//         Material::Glass => Some(&GLASS_MODES[index]),
+//         Material::Metal => Some(&METAL_MODES[index]),
+//     }
+// }
 
 // For velocity handling later
 // pub fn excite_modes<const N: usize>(
@@ -41,15 +44,16 @@ pub fn get_modes(midi_note: u8, material: Material) -> Option<&'static [Mode; 8]
 // }
 
 struct Pockyplocky {
-    params: Arc<SinewhiskParams>,
+    params: Arc<PockyplockyParams>,
     voices: VoiceManager,
 }
 
 impl Default for Pockyplocky {
     fn default() -> Self {
+        let params = Arc::new(PockyplockyParams::default());
         Self {
-            params: Arc::new(SinewhiskParams::default()),
-            voices: VoiceManager::default(),
+            params: params.clone(),
+            voices: VoiceManager::new(params),
         }
     }
 }
@@ -122,20 +126,13 @@ impl Plugin for Pockyplocky {
                                     .start_voice(context, timing, voice_id, channel, note);
                                 let voice = &mut self.voices.voices_mut()[s];
 
-                                let modes = get_modes(note, self.params.material.value());
-                                if let Some(m) = modes {
-                                    voice.start(
-                                        voice.voice_id,
-                                        voice.channel,
-                                        voice.note,
-                                        voice.internal_voice_id,
-                                        velocity,
-                                        m,
-                                        self.params.material.value(),
-                                        self.params.noise_decay.value(),
-                                        self.params.decay.value(),
-                                    );
-                                }
+                                voice.start(
+                                    voice.voice_id,
+                                    voice.channel,
+                                    voice.note,
+                                    voice.internal_voice_id,
+                                    velocity,
+                                );
                             }
                             NoteEvent::Choke {
                                 timing,
@@ -164,28 +161,10 @@ impl Plugin for Pockyplocky {
 
             let block_len = block_end - block_start;
 
-            // Fill gain buffer with smoothed values
-            let mut gain_buffer = [0.0; MAX_BLOCK_SIZE];
-            self.params
-                .gain
-                .smoothed
-                .next_block(&mut gain_buffer[..block_len], block_len);
-
-            // Fill noise level buffer with smoothed values
-            let mut noise_level_buffer = [0.0; MAX_BLOCK_SIZE];
-            self.params
-                .noise_level
-                .smoothed
-                .next_block(&mut noise_level_buffer[..block_len], block_len);
-
             // Process all voices
             let mut sample_buffer = [0.0; MAX_BLOCK_SIZE];
             for voice in self.voices.voices_mut() {
-                let voice_samples = voice.process_block(
-                    &gain_buffer[..block_len],
-                    &noise_level_buffer[..block_len],
-                    block_len,
-                );
+                let voice_samples = voice.process_block(block_len);
                 for i in 0..block_len {
                     sample_buffer[i] += voice_samples[i];
                 }

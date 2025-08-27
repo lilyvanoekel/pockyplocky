@@ -17,3 +17,4 @@ To do:
   - Nudge the ratios a bit somehow "make more inharmonic?"
 - Double voice
 - Efficiency, vectorizing?
+- Delay based reverby thing? or other delay effect

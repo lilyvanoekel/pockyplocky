@@ -1,4 +1,6 @@
-use crate::voice::Voice;
+use std::sync::Arc;
+
+use crate::{params::PockyplockyParams, voice::Voice};
 use nih_plug::prelude::*;
 
 pub const NUM_VOICES: usize = 16;
@@ -8,16 +10,14 @@ pub struct VoiceManager {
     next_internal_voice_id: u64,
 }
 
-impl Default for VoiceManager {
-    fn default() -> Self {
+impl VoiceManager {
+    pub fn new(params: Arc<PockyplockyParams>) -> Self {
         Self {
-            voices: std::array::from_fn(|_| Voice::default()),
+            voices: std::array::from_fn(|_| Voice::new(params.clone())),
             next_internal_voice_id: 0,
         }
     }
-}
 
-impl VoiceManager {
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         for voice in &mut self.voices {
             voice.set_sample_rate(sample_rate);
@@ -47,8 +47,6 @@ impl VoiceManager {
         channel: u8,
         note: u8,
         internal_voice_id: u64,
-        velocity_sqrt: f32,
-        amp_envelope: Smoother<f32>,
     ) {
         let voice = &mut self.voices[slot];
         voice.active = true;
@@ -56,9 +54,6 @@ impl VoiceManager {
         voice.channel = channel;
         voice.note = note;
         voice.internal_voice_id = internal_voice_id;
-        voice.velocity_sqrt = velocity_sqrt;
-        voice.releasing = false;
-        voice.amp_envelope = amp_envelope;
     }
 
     /// Deactivate a voice slot
@@ -98,8 +93,6 @@ impl VoiceManager {
                     channel,
                     note,
                     self.next_internal_voice_id,
-                    1.0,
-                    Smoother::none(),
                 );
                 free_voice_idx
             }
@@ -123,8 +116,6 @@ impl VoiceManager {
                     channel,
                     note,
                     self.next_internal_voice_id,
-                    1.0,
-                    Smoother::none(),
                 );
                 oldest_slot
             }
@@ -176,7 +167,10 @@ impl VoiceManager {
 
     /// Reset the voice data to initial state
     pub fn reset(&mut self) {
-        *self = Self::default();
+        self.next_internal_voice_id = 0;
+        for v in &mut self.voices {
+            v.reset();
+        }
     }
 
     /// Get a mutable reference to all voices for iteration
