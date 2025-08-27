@@ -8,6 +8,12 @@ pub struct SinewhiskParams {
     pub material: EnumParam<Material>,
     #[id = "filter_res"]
     pub filter_resonance: FloatParam,
+    #[id = "noise_level"]
+    pub noise_level: FloatParam,
+    #[id = "noise_decay"]
+    pub noise_decay: FloatParam,
+    #[id = "decay"]
+    pub decay: FloatParam,
 }
 
 #[derive(Enum, Debug, Clone, Copy, PartialEq)]
@@ -48,6 +54,27 @@ impl Default for SinewhiskParams {
             )
             .with_smoother(SmoothingStyle::Linear(50.0))
             .with_unit(" Q"),
+
+            noise_level: FloatParam::new(
+                "Noise Level (Filter)",
+                0.1,
+                FloatRange::Linear { min: 0.0, max: 0.5 },
+            )
+            .with_smoother(SmoothingStyle::Linear(50.0)),
+
+            noise_decay: FloatParam::new(
+                "Noise Decay",
+                400.0,
+                FloatRange::Linear {
+                    min: 1.0,
+                    max: 500.0,
+                },
+            )
+            .with_smoother(SmoothingStyle::Linear(50.0))
+            .with_unit(" ms"),
+
+            decay: FloatParam::new("Decay", 0.461, FloatRange::Linear { min: 0.1, max: 2.0 })
+                .with_unit(" s"),
         }
     }
 }

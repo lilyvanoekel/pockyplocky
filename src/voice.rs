@@ -1,4 +1,6 @@
 use nih_plug::prelude::*;
+use rand::Rng;
+use rand_pcg::Pcg32;
 
 use crate::filter::ModalFilter;
 
@@ -23,6 +25,9 @@ pub struct Voice {
     pub total_duration: usize, // Total duration based on longest mode decay time
     pub sample_count: usize,  // Current sample count since start
     pub trigger: bool,
+    pub noise_envelope: Smoother<f32>,
+    pub noise_envelope_values: [f32; MAX_BLOCK_SIZE],
+    pub prng: Pcg32,
 }
 
 impl Default for Voice {
@@ -46,6 +51,9 @@ impl Default for Voice {
             total_duration: 0,
             sample_count: 0,
             trigger: false,
+            noise_envelope: Smoother::none(),
+            noise_envelope_values: [0.0; MAX_BLOCK_SIZE],
+            prng: Pcg32::new(12345, 67890),
         }
     }
 }
@@ -65,6 +73,8 @@ impl Voice {
         velocity: f32,
         modes: &[crate::data::Mode; 8],
         material: crate::params::Material,
+        noise_decay: f32,
+        decay: f32,
     ) {
         self.voice_id = voice_id;
         self.channel = channel;
@@ -100,12 +110,16 @@ impl Voice {
         // Configure modal filter
         self.filter.reset();
         // self.filter.set_modes(modes);
-        self.filter.set_frequency(frequency);
+        self.filter.set_frequency(frequency, decay);
 
         // Set up envelope
-        self.amp_envelope.style = nih_plug::prelude::SmoothingStyle::Exponential(10.0);
+        self.amp_envelope.style = SmoothingStyle::Exponential(10.0);
         self.amp_envelope.reset(0.0);
         self.amp_envelope.set_target(self.sample_rate, 1.0);
+
+        self.noise_envelope.style = SmoothingStyle::Exponential(noise_decay);
+        self.noise_envelope.reset(1.0);
+        self.noise_envelope.set_target(self.sample_rate, 0.0);
 
         self.active = true;
     }
@@ -113,6 +127,7 @@ impl Voice {
     pub fn process_block(
         &mut self,
         gain_buffer: &[f32],
+        noise_level_buffer: &[f32],
         block_len: usize,
     ) -> [f32; MAX_BLOCK_SIZE] {
         let mut output = [0.0; MAX_BLOCK_SIZE];
@@ -125,8 +140,13 @@ impl Voice {
         self.amp_envelope
             .next_block(&mut self.envelope_values[..block_len], block_len);
 
+        // Update noise envelope
+        self.noise_envelope
+            .next_block(&mut self.noise_envelope_values[..block_len], block_len);
+
         for i in 0..block_len {
             let envelope_value = self.envelope_values[i];
+            let noise_envelope_value = self.noise_envelope_values[i];
 
             // let input = if self.noise_index < self.noise_duration {
             //     // Get noise sample, loop the table if needed
@@ -144,8 +164,19 @@ impl Voice {
                 0.0
             };
 
-            // Process through the resonant filter
-            let filtered_noise = self.filter.process(input);
+            // Add noise to input (noise level will come from parameter)
+            let noise_sample = if self.noise_index < self.noise_duration {
+                // Generate noise between -1 and 1 using PRNG
+                let noise = self.prng.gen_range(-1.0..=1.0);
+                self.noise_index += 1;
+                noise
+            } else {
+                0.0
+            };
+            let noise_input = noise_sample * noise_envelope_value * noise_level_buffer[i];
+            let mixed_input = input + noise_input;
+
+            let filtered_noise = self.filter.process(mixed_input);
             let voice_sample = filtered_noise * gain_buffer[i] * envelope_value;
             output[i] = voice_sample;
 

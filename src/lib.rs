@@ -132,6 +132,8 @@ impl Plugin for Pockyplocky {
                                         velocity,
                                         m,
                                         self.params.material.value(),
+                                        self.params.noise_decay.value(),
+                                        self.params.decay.value(),
                                     );
                                 }
                             }
@@ -169,10 +171,21 @@ impl Plugin for Pockyplocky {
                 .smoothed
                 .next_block(&mut gain_buffer[..block_len], block_len);
 
+            // Fill noise level buffer with smoothed values
+            let mut noise_level_buffer = [0.0; MAX_BLOCK_SIZE];
+            self.params
+                .noise_level
+                .smoothed
+                .next_block(&mut noise_level_buffer[..block_len], block_len);
+
             // Process all voices
             let mut sample_buffer = [0.0; MAX_BLOCK_SIZE];
             for voice in self.voices.voices_mut() {
-                let voice_samples = voice.process_block(&gain_buffer[..block_len], block_len);
+                let voice_samples = voice.process_block(
+                    &gain_buffer[..block_len],
+                    &noise_level_buffer[..block_len],
+                    block_len,
+                );
                 for i in 0..block_len {
                     sample_buffer[i] += voice_samples[i];
                 }
