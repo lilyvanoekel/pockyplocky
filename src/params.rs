@@ -4,8 +4,8 @@ use nih_plug::prelude::*;
 pub struct PockyplockyParams {
     #[id = "gain"]
     pub gain: FloatParam,
-    #[id = "material"]
-    pub material: EnumParam<Material>,
+    #[id = "timbre"]
+    pub timbre: EnumParam<Timbre>,
     #[id = "filter_res"]
     pub filter_resonance: FloatParam,
     #[id = "noise_level"]
@@ -19,13 +19,15 @@ pub struct PockyplockyParams {
 }
 
 #[derive(Enum, Debug, Clone, Copy, PartialEq)]
-pub enum Material {
-    #[name = "Wood"]
-    Wood,
-    #[name = "Glass"]
-    Glass,
-    #[name = "Metal"]
-    Metal,
+pub enum Timbre {
+    #[name = "Xylophone"]
+    Xylophone,
+    #[name = "Metal Pan"]
+    MetalPan,
+    #[name = "Glass Marimba"]
+    GlassMarimba,
+    #[name = "Piano"]
+    Piano,
 }
 
 impl Default for PockyplockyParams {
@@ -44,7 +46,7 @@ impl Default for PockyplockyParams {
             .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
 
-            material: EnumParam::new("Material", Material::Wood),
+            timbre: EnumParam::new("Timbre", Timbre::Xylophone),
 
             filter_resonance: FloatParam::new(
                 "Filter Res",

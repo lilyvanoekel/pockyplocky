@@ -39,7 +39,7 @@ impl Voice {
             sample_rate: 44100.0,
             total_duration: 0,
             sample_count: 0,
-            calculator: ModeCalculator::new(),
+            calculator: ModeCalculator::new(params.clone()),
             resonator: ModalResonator::new(),
             exciter: Exciter::new(params.clone()),
             envelope: Envelope::new(),
