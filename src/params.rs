@@ -1,4 +1,8 @@
+use std::sync::Arc;
+
 use nih_plug::prelude::*;
+
+use crate::constants::MAX_BLOCK_SIZE;
 
 #[derive(Params)]
 pub struct PockyplockyParams {
@@ -106,5 +110,41 @@ impl Default for PockyplockyParams {
 
             click: BoolParam::new("Click", true),
         }
+    }
+}
+
+pub struct ParamBuffers {
+    params: Arc<PockyplockyParams>,
+    gain_buffer: [f32; MAX_BLOCK_SIZE],
+    noise_level_buffer: [f32; MAX_BLOCK_SIZE],
+}
+
+impl ParamBuffers {
+    pub fn new(params: Arc<PockyplockyParams>) -> Self {
+        Self {
+            params,
+            gain_buffer: [0.0; MAX_BLOCK_SIZE],
+            noise_level_buffer: [0.0; MAX_BLOCK_SIZE],
+        }
+    }
+
+    pub fn process_block(&mut self, block_len: usize) {
+        self.params
+            .gain
+            .smoothed
+            .next_block(&mut self.gain_buffer[..block_len], block_len);
+
+        self.params
+            .noise_level
+            .smoothed
+            .next_block(&mut self.noise_level_buffer[..block_len], block_len);
+    }
+
+    pub fn get_gain_buffer(&self) -> &[f32] {
+        &self.gain_buffer
+    }
+
+    pub fn get_noise_level_buffer(&self) -> &[f32] {
+        &self.noise_level_buffer
     }
 }

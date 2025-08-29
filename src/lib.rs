@@ -1,6 +1,7 @@
 use nih_plug::prelude::*;
 use std::sync::Arc;
 
+mod constants;
 mod data;
 mod envelope;
 mod exciter;
@@ -10,9 +11,11 @@ mod resonator;
 mod voice;
 mod voice_manager;
 
+use constants::MAX_BLOCK_SIZE;
 use params::PockyplockyParams;
-use voice::MAX_BLOCK_SIZE;
 use voice_manager::VoiceManager;
+
+use crate::params::ParamBuffers;
 
 // use crate::data::{GLASS_MODES, METAL_MODES, Mode, WOOD_MODES};
 
@@ -45,6 +48,7 @@ use voice_manager::VoiceManager;
 
 struct Pockyplocky {
     params: Arc<PockyplockyParams>,
+    param_buffers: ParamBuffers,
     voices: VoiceManager,
 }
 
@@ -53,6 +57,7 @@ impl Default for Pockyplocky {
         let params = Arc::new(PockyplockyParams::default());
         Self {
             params: params.clone(),
+            param_buffers: ParamBuffers::new(params.clone()),
             voices: VoiceManager::new(params),
         }
     }
@@ -161,10 +166,12 @@ impl Plugin for Pockyplocky {
 
             let block_len = block_end - block_start;
 
+            self.param_buffers.process_block(block_len);
+
             // Process all voices
             let mut sample_buffer = [0.0; MAX_BLOCK_SIZE];
             for voice in self.voices.voices_mut() {
-                let voice_samples = voice.process_block(block_len);
+                let voice_samples = voice.process_block(block_len, &self.param_buffers);
                 for i in 0..block_len {
                     sample_buffer[i] += voice_samples[i];
                 }

@@ -1,6 +1,6 @@
 use nih_plug::prelude::*;
 
-use crate::voice::MAX_BLOCK_SIZE;
+use crate::constants::MAX_BLOCK_SIZE;
 
 pub struct Envelope {
     sample_rate: f32,

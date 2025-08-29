@@ -3,11 +3,13 @@ use std::sync::Arc;
 use nih_plug::prelude::*;
 
 use crate::{
-    envelope::Envelope, exciter::Exciter, modes::ModeCalculator, params::PockyplockyParams,
+    constants::MAX_BLOCK_SIZE,
+    envelope::Envelope,
+    exciter::Exciter,
+    modes::ModeCalculator,
+    params::{ParamBuffers, PockyplockyParams},
     resonator::ModalResonator,
 };
-
-pub const MAX_BLOCK_SIZE: usize = 64;
 
 pub struct Voice {
     params: Arc<PockyplockyParams>,
@@ -90,20 +92,19 @@ impl Voice {
         self.envelope.start();
     }
 
-    pub fn process_block(&mut self, block_len: usize) -> [f32; MAX_BLOCK_SIZE] {
+    pub fn process_block(
+        &mut self,
+        block_len: usize,
+        param_buffers: &ParamBuffers,
+    ) -> [f32; MAX_BLOCK_SIZE] {
         let mut output = [0.0; MAX_BLOCK_SIZE];
 
         if !self.active {
             return output;
         }
 
-        let mut gain_buffer = [0.0; MAX_BLOCK_SIZE];
-        self.params
-            .gain
-            .smoothed
-            .next_block(&mut gain_buffer[..block_len], block_len);
-
-        let exciter_block = self.exciter.process_block(block_len);
+        let gain_buffer = param_buffers.get_gain_buffer();
+        let exciter_block = self.exciter.process_block(block_len, param_buffers);
         let envelope_block = self.envelope.process_block(block_len);
 
         for i in 0..block_len {
