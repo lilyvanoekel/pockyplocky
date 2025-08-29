@@ -28,6 +28,8 @@ pub enum Timbre {
     GlassMarimba,
     #[name = "Piano"]
     Piano,
+    #[name = "Wood Blocks"]
+    WoodBlocks,
 }
 
 impl Default for PockyplockyParams {
