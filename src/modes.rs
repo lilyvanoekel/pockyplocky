@@ -175,15 +175,22 @@ impl ModeCalculator {
             Timbre::WoodBlocks => Timbre::build_wood_blocks_modes(fundamental_freq, decay),
         };
 
-        for i in 0..NUM_MODES {
+        let fundamental_balance = self.params.fundamental_balance.value();
+        let sparkle = self.params.sparkle.value();
+
+        self.modes[0].frequency = new_modes[0].frequency;
+        self.modes[0].decay = new_modes[0].decay;
+        self.modes[0].amplitude = new_modes[0].amplitude * (1.0 + fundamental_balance);
+
+        for i in 1..NUM_MODES {
             if new_modes[i].frequency > 20000.0 {
                 self.modes[i].frequency = 20000.0;
                 self.modes[i].decay = 1.0;
                 self.modes[i].amplitude = 0.0;
             } else {
                 self.modes[i].frequency = new_modes[i].frequency;
-                self.modes[i].amplitude = new_modes[i].amplitude;
-                self.modes[i].decay = new_modes[i].decay;
+                self.modes[i].decay = new_modes[i].decay * (1.0 + sparkle);
+                self.modes[i].amplitude = new_modes[i].amplitude * (1.0 - fundamental_balance);
             }
         }
     }

@@ -14,6 +14,10 @@ pub struct PockyplockyParams {
     pub noise_decay: FloatParam,
     #[id = "decay"]
     pub decay: FloatParam,
+    #[id = "fundamental_balance"]
+    pub fundamental_balance: FloatParam,
+    #[id = "sparkle"]
+    pub sparkle: FloatParam,
     #[id = "click"]
     pub click: BoolParam,
 }
@@ -81,6 +85,24 @@ impl Default for PockyplockyParams {
 
             decay: FloatParam::new("Decay", 0.461, FloatRange::Linear { min: 0.1, max: 2.0 })
                 .with_unit(" s"),
+
+            fundamental_balance: FloatParam::new(
+                "Fundamental Balance",
+                0.0,
+                FloatRange::Linear {
+                    min: -1.0,
+                    max: 1.0,
+                },
+            ),
+
+            sparkle: FloatParam::new(
+                "Sparkle",
+                0.0,
+                FloatRange::Linear {
+                    min: -1.0,
+                    max: 1.0,
+                },
+            ),
 
             click: BoolParam::new("Click", true),
         }
