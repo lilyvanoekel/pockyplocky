@@ -38,6 +38,8 @@ pub enum Timbre {
     Piano,
     #[name = "Wood Blocks"]
     WoodBlocks,
+    #[name = "Steel Drum"]
+    SteelDrum,
 }
 
 impl Default for PockyplockyParams {
