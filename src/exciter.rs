@@ -12,7 +12,6 @@ use crate::{
 pub struct Exciter {
     params: Arc<PockyplockyParams>,
     sample_rate: f32,
-    output_buffer: [f32; MAX_BLOCK_SIZE],
     noise_envelope: Smoother<f32>,
     noise_envelope_values: [f32; MAX_BLOCK_SIZE],
     trigger: f32,
@@ -24,7 +23,6 @@ impl Exciter {
         Self {
             params,
             sample_rate: 44100.0,
-            output_buffer: [0.0; MAX_BLOCK_SIZE],
             noise_envelope: Smoother::none(),
             noise_envelope_values: [0.0; MAX_BLOCK_SIZE],
             trigger: 0.0,
@@ -43,7 +41,12 @@ impl Exciter {
         self.trigger = if self.params.click.value() { 1.0 } else { 0.0 };
     }
 
-    pub fn process_block(&mut self, block_len: usize, param_buffers: &ParamBuffers) -> &[f32] {
+    pub fn process_block(
+        &mut self,
+        output: &mut [f32],
+        block_len: usize,
+        param_buffers: &ParamBuffers,
+    ) {
         let noise_level_buffer = param_buffers.get_noise_level_buffer();
 
         self.noise_envelope
@@ -54,11 +57,9 @@ impl Exciter {
             let noise_sample =
                 self.prng.gen_range(-1.0..=1.0) * noise_envelope_value * noise_level_buffer[i];
 
-            self.output_buffer[i] = self.trigger + noise_sample;
+            output[i] = self.trigger + noise_sample;
 
             self.trigger = 0.0;
         }
-
-        &self.output_buffer[..block_len]
     }
 }

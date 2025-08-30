@@ -107,25 +107,22 @@ impl Voice {
         }
 
         let gain_buffer = param_buffers.get_gain_buffer();
-        let exciter_block = self.exciter.process_block(block_len, param_buffers);
+        self.exciter
+            .process_block(&mut output, block_len, param_buffers);
         let envelope_block = self.envelope.process_block(block_len);
 
         for i in 0..block_len {
             let envelope_value = envelope_block[i];
-            let filtered_noise = self.resonator.process(exciter_block[i]);
+            let filtered_noise = self.resonator.process(output[i]);
             let voice_sample = filtered_noise * envelope_value;
             output[i] = voice_sample;
         }
 
-        // Apply wave folding if enabled
         if self.params.wave_folder_enabled.value() {
             let amount = self.params.wave_folder_amount.value();
             self.wave_folder.set_amount(amount);
-            let folded_output = self
-                .wave_folder
-                .process_block(&output[..block_len], block_len);
             for i in 0..block_len {
-                output[i] = folded_output[i];
+                output[i] = self.wave_folder.process(output[i]);
             }
         }
 

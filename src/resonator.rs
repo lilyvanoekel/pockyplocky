@@ -1,4 +1,5 @@
 use crate::modes::{Mode, NUM_MODES};
+use wide::f32x8;
 
 pub const T60_DECAY_FACTOR: f32 = -6.91; // -ln(1000) for 60dB decay
 pub struct ModalResonator {
@@ -42,16 +43,27 @@ impl ModalResonator {
     }
 
     pub fn process(&mut self, input: f32) -> f32 {
-        let mut result = 0.0;
+        let input_vec = f32x8::splat(input);
+        let b0_vec = f32x8::from(self.b0);
+        let a1_vec = f32x8::from(self.a1);
+        let a2_vec = f32x8::from(self.a2);
+        let y1_vec = f32x8::from(self.y1);
+        let y2_vec = f32x8::from(self.y2);
+        let amp_vec = f32x8::from(self.amplitudes);
 
-        for i in 0..NUM_MODES {
-            let y = self.b0[i] * input - self.a1[i] * self.y1[i] - self.a2[i] * self.y2[i];
-            self.y2[i] = self.y1[i];
-            self.y1[i] = y;
-            result += y * self.amplitudes[i];
-        }
+        let y_vec = b0_vec * input_vec - a1_vec * y1_vec - a2_vec * y2_vec;
 
-        result
+        // Update state
+        let new_y2 = y1_vec;
+        let new_y1 = y_vec;
+
+        // Store back to arrays
+        self.y2 = new_y2.into();
+        self.y1 = new_y1.into();
+
+        // Multiply by amplitudes and sum
+        let result_vec = y_vec * amp_vec;
+        result_vec.reduce_add()
     }
 
     pub fn reset(&mut self) {
