@@ -20,6 +20,7 @@ pub struct Voice {
     pub total_duration: usize, // Total duration based on longest mode decay time
     pub sample_count: usize,   // Current sample count since start
     pub modal_synth: ModalSynth,
+    pub modal_synth2: ModalSynth,
 }
 
 impl Voice {
@@ -35,13 +36,15 @@ impl Voice {
             sample_rate: 44100.0,
             total_duration: 0,
             sample_count: 0,
-            modal_synth: ModalSynth::new(params),
+            modal_synth: ModalSynth::new(params.clone()),
+            modal_synth2: ModalSynth::new(params),
         }
     }
 
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
         self.modal_synth.set_sample_rate(sample_rate);
+        self.modal_synth2.set_sample_rate(sample_rate);
     }
 
     pub fn start(
@@ -60,7 +63,22 @@ impl Voice {
         self.sample_count = 0;
         let frequency = util::midi_note_to_freq(note);
         let decay = self.params.decay.value();
-        let max_decay_time = self.modal_synth.start(frequency, velocity, decay);
+
+        // Calculate detune factors based on percentage
+        let detune = self.params.second_voice_detune.value();
+        let detune_factor1 = 1.0 - detune * 0.02; // Max 2% detune
+        let detune_factor2 = 1.0 + detune * 0.02;
+
+        let max_decay_time = self
+            .modal_synth
+            .start(frequency * detune_factor1, velocity, decay);
+
+        // Only start second voice if enabled
+        if self.params.second_voice_enabled.value() {
+            self.modal_synth2
+                .start(frequency * detune_factor2, velocity, decay);
+        }
+
         self.total_duration = (self.sample_rate * max_decay_time) as usize;
         self.active = true;
     }
@@ -73,12 +91,32 @@ impl Voice {
         output: &mut [&mut [f32]],
     ) {
         let mut buffer = [0.0; MAX_BLOCK_SIZE];
+
         self.modal_synth
             .process_block(&mut buffer, block_len, param_buffers);
 
-        for i in 0..block_len {
-            output[0][block_start + i] += buffer[i];
-            output[1][block_start + i] += buffer[i];
+        if self.params.second_voice_enabled.value() {
+            let stereo_spread = self.params.second_voice_stereo_spread.value();
+            let left_gain = 0.5 - stereo_spread * 0.5;
+            let right_gain = 0.5 + stereo_spread * 0.5;
+
+            for i in 0..block_len {
+                output[0][block_start + i] += buffer[i] * left_gain;
+                output[1][block_start + i] += buffer[i] * right_gain;
+            }
+
+            self.modal_synth2
+                .process_block(&mut buffer, block_len, param_buffers);
+
+            for i in 0..block_len {
+                output[0][block_start + i] += buffer[i] * right_gain;
+                output[1][block_start + i] += buffer[i] * left_gain;
+            }
+        } else {
+            for i in 0..block_len {
+                output[0][block_start + i] += buffer[i];
+                output[1][block_start + i] += buffer[i];
+            }
         }
 
         self.sample_count += block_len;

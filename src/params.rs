@@ -26,6 +26,12 @@ pub struct PockyplockyParams {
     pub wave_folder_enabled: BoolParam,
     #[id = "wave_folder_amount"]
     pub wave_folder_amount: FloatParam,
+    #[id = "second_voice_enabled"]
+    pub second_voice_enabled: BoolParam,
+    #[id = "second_voice_detune"]
+    pub second_voice_detune: FloatParam,
+    #[id = "second_voice_stereo_spread"]
+    pub second_voice_stereo_spread: FloatParam,
 }
 
 #[derive(Enum, Debug, Clone, Copy, PartialEq)]
@@ -108,6 +114,24 @@ impl Default for PockyplockyParams {
                 "Wave Folder Amount",
                 1.0,
                 FloatRange::Linear { min: 1.0, max: 5.0 },
+            ),
+
+            second_voice_enabled: BoolParam::new("Second Voice", false),
+
+            second_voice_detune: FloatParam::new(
+                "Second Voice Detune",
+                0.0,
+                FloatRange::Linear {
+                    min: -1.0,
+                    max: 1.0,
+                },
+            )
+            .with_unit(" %"),
+
+            second_voice_stereo_spread: FloatParam::new(
+                "Second Voice Stereo Spread",
+                0.5,
+                FloatRange::Linear { min: 0.0, max: 1.0 },
             ),
         }
     }
