@@ -166,15 +166,15 @@ impl Plugin for Pockyplocky {
             self.param_buffers.process_block(block_len);
 
             // Process all voices
-            let mut sample_buffer = [0.0; MAX_BLOCK_SIZE];
             for voice in self.voices.voices_mut() {
-                let voice_samples = voice.process_block(block_len, &self.param_buffers);
-                for i in 0..block_len {
-                    sample_buffer[i] += voice_samples[i];
+                if !voice.active {
+                    continue;
                 }
 
+                voice.process_block(block_start, block_len, &self.param_buffers, output);
+
                 // Check for voice termination
-                if voice.active && voice.is_finished() {
+                if voice.is_finished() {
                     context.send_event(NoteEvent::VoiceTerminated {
                         timing: block_end as u32,
                         voice_id: Some(voice.voice_id),
@@ -183,12 +183,6 @@ impl Plugin for Pockyplocky {
                     });
                     voice.active = false;
                 }
-            }
-
-            // Apply to both channels
-            for (sample_idx, &sample) in (block_start..block_end).zip(sample_buffer.iter()) {
-                output[0][sample_idx] = sample;
-                output[1][sample_idx] = sample;
             }
 
             block_start = block_end;

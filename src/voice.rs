@@ -67,20 +67,21 @@ impl Voice {
 
     pub fn process_block(
         &mut self,
+        block_start: usize,
         block_len: usize,
         param_buffers: &ParamBuffers,
-    ) -> [f32; MAX_BLOCK_SIZE] {
-        let mut output = [0.0; MAX_BLOCK_SIZE];
+        output: &mut [&mut [f32]],
+    ) {
+        let mut buffer = [0.0; MAX_BLOCK_SIZE];
+        self.modal_synth
+            .process_block(&mut buffer, block_len, param_buffers);
 
-        if !self.active {
-            return output;
+        for i in 0..block_len {
+            output[0][block_start + i] += buffer[i];
+            output[1][block_start + i] += buffer[i];
         }
 
-        self.modal_synth
-            .process_block(&mut output, block_len, param_buffers);
-
         self.sample_count += block_len;
-        output
     }
 
     pub fn is_finished(&self) -> bool {
