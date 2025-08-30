@@ -9,6 +9,7 @@ use crate::{
     modes::ModeCalculator,
     params::{ParamBuffers, PockyplockyParams},
     resonator::ModalResonator,
+    wave_folder::WaveFolder,
 };
 
 pub struct Voice {
@@ -26,6 +27,7 @@ pub struct Voice {
     pub resonator: ModalResonator,
     pub exciter: Exciter,
     pub envelope: Envelope,
+    pub wave_folder: WaveFolder,
 }
 
 impl Voice {
@@ -45,6 +47,7 @@ impl Voice {
             resonator: ModalResonator::new(),
             exciter: Exciter::new(params.clone()),
             envelope: Envelope::new(),
+            wave_folder: WaveFolder::new(),
         }
     }
 
@@ -110,8 +113,25 @@ impl Voice {
         for i in 0..block_len {
             let envelope_value = envelope_block[i];
             let filtered_noise = self.resonator.process(exciter_block[i]);
-            let voice_sample = filtered_noise * gain_buffer[i] * envelope_value;
+            let voice_sample = filtered_noise * envelope_value;
             output[i] = voice_sample;
+        }
+
+        // Apply wave folding if enabled
+        if self.params.wave_folder_enabled.value() {
+            let amount = self.params.wave_folder_amount.value();
+            self.wave_folder.set_amount(amount);
+            let folded_output = self
+                .wave_folder
+                .process_block(&output[..block_len], block_len);
+            for i in 0..block_len {
+                output[i] = folded_output[i];
+            }
+        }
+
+        // Apply gain as final volume control
+        for i in 0..block_len {
+            output[i] *= gain_buffer[i];
         }
 
         self.sample_count += block_len;

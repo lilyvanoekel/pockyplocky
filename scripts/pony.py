@@ -24,7 +24,7 @@ class ModeSelector:
         self.button = Button(ax_button, 'Make it so')
         self.button.on_clicked(self.make_it_so)
 
-    def nearest_peak(self, f0, search_hz=200):
+    def nearest_peak(self, f0, search_hz=100):
         mask = (self.freqs >= f0 - search_hz) & (self.freqs <= f0 + search_hz)
         if not np.any(mask):
             return f0

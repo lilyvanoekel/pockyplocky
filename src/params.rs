@@ -10,8 +10,6 @@ pub struct PockyplockyParams {
     pub gain: FloatParam,
     #[id = "timbre"]
     pub timbre: EnumParam<Timbre>,
-    #[id = "filter_res"]
-    pub filter_resonance: FloatParam,
     #[id = "noise_level"]
     pub noise_level: FloatParam,
     #[id = "noise_decay"]
@@ -24,6 +22,10 @@ pub struct PockyplockyParams {
     pub sparkle: FloatParam,
     #[id = "click"]
     pub click: BoolParam,
+    #[id = "wave_folder_enabled"]
+    pub wave_folder_enabled: BoolParam,
+    #[id = "wave_folder_amount"]
+    pub wave_folder_amount: FloatParam,
 }
 
 #[derive(Enum, Debug, Clone, Copy, PartialEq)]
@@ -60,17 +62,6 @@ impl Default for PockyplockyParams {
 
             timbre: EnumParam::new("Timbre", Timbre::Xylophone),
 
-            filter_resonance: FloatParam::new(
-                "Filter Res",
-                50.0,
-                FloatRange::Linear {
-                    min: 1.0,
-                    max: 200.0,
-                },
-            )
-            .with_smoother(SmoothingStyle::Linear(50.0))
-            .with_unit(" Q"),
-
             noise_level: FloatParam::new(
                 "Noise Level (Filter)",
                 0.1,
@@ -86,7 +77,6 @@ impl Default for PockyplockyParams {
                     max: 500.0,
                 },
             )
-            .with_smoother(SmoothingStyle::Linear(50.0))
             .with_unit(" ms"),
 
             decay: FloatParam::new("Decay", 0.461, FloatRange::Linear { min: 0.1, max: 2.0 })
@@ -111,6 +101,14 @@ impl Default for PockyplockyParams {
             ),
 
             click: BoolParam::new("Click", true),
+
+            wave_folder_enabled: BoolParam::new("Wave Folder", false),
+
+            wave_folder_amount: FloatParam::new(
+                "Wave Folder Amount",
+                1.0,
+                FloatRange::Linear { min: 1.0, max: 5.0 },
+            ),
         }
     }
 }
