@@ -1,4 +1,4 @@
-use crate::modes::{Mode, NUM_MODES};
+use crate::modal_synth::modes::{Mode, NUM_MODES};
 use wide::f32x8;
 
 pub const T60_DECAY_FACTOR: f32 = -6.91; // -ln(1000) for 60dB decay

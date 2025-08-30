@@ -3,14 +3,10 @@ use std::sync::Arc;
 
 mod constants;
 mod data;
-mod envelope;
-mod exciter;
-mod modes;
+mod modal_synth;
 mod params;
-mod resonator;
 mod voice;
 mod voice_manager;
-mod wave_folder;
 
 use constants::MAX_BLOCK_SIZE;
 use params::PockyplockyParams;
