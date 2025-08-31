@@ -7,7 +7,6 @@ mod resonator;
 mod wave_folder;
 
 use crate::{
-    modal_synth::envelope::Envelope,
     modal_synth::exciter::Exciter,
     modal_synth::modes::ModeCalculator,
     modal_synth::resonator::ModalResonator,
@@ -22,7 +21,6 @@ pub struct ModalSynth {
     pub calculator: ModeCalculator,
     pub resonator: ModalResonator,
     pub exciter: Exciter,
-    pub envelope: Envelope,
     pub wave_folder: WaveFolder,
 }
 
@@ -35,7 +33,6 @@ impl ModalSynth {
             calculator: ModeCalculator::new(params.clone()),
             resonator: ModalResonator::new(),
             exciter: Exciter::new(params.clone()),
-            envelope: Envelope::new(),
             wave_folder: WaveFolder::new(),
         }
     }
@@ -44,7 +41,6 @@ impl ModalSynth {
         self.sample_rate = sample_rate;
         self.resonator.set_sample_rate(sample_rate);
         self.exciter.set_sample_rate(sample_rate);
-        self.envelope.set_sample_rate(sample_rate);
     }
 
     pub fn start(&mut self, frequency: f32, velocity: f32, decay: f32) -> f32 {
@@ -61,7 +57,6 @@ impl ModalSynth {
         }
 
         self.exciter.start();
-        self.envelope.start();
         max_decay_time
     }
 
@@ -73,12 +68,10 @@ impl ModalSynth {
     ) {
         let gain_buffer = param_buffers.get_gain_buffer();
         self.exciter.process_block(output, block_len, param_buffers);
-        let envelope_block = self.envelope.process_block(block_len);
 
         for i in 0..block_len {
-            let envelope_value = envelope_block[i];
             let filtered_noise = self.resonator.process(output[i]);
-            let voice_sample = filtered_noise * envelope_value;
+            let voice_sample = filtered_noise;
             output[i] = voice_sample;
         }
 

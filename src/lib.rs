@@ -2,7 +2,6 @@ use nih_plug::prelude::*;
 use std::sync::Arc;
 
 mod constants;
-mod data;
 mod modal_synth;
 mod params;
 mod voice;
@@ -13,35 +12,6 @@ use params::PockyplockyParams;
 use voice_manager::VoiceManager;
 
 use crate::params::ParamBuffers;
-
-// use crate::data::{GLASS_MODES, METAL_MODES, Mode, WOOD_MODES};
-
-// pub fn get_modes(midi_note: u8, material: Material) -> Option<&'static [Mode; 8]> {
-//     if midi_note < 21 || midi_note > 108 {
-//         return None;
-//     }
-//     let index = (midi_note - 21) as usize;
-//     match material {
-//         Material::Wood => Some(&WOOD_MODES[index]),
-//         Material::Glass => Some(&GLASS_MODES[index]),
-//         Material::Metal => Some(&METAL_MODES[index]),
-//     }
-// }
-
-// For velocity handling later
-// pub fn excite_modes<const N: usize>(
-//     modes: &[Mode; N],
-//     strike_pos: f32,
-//     strike_strength: f32,
-// ) -> [f32; N] {
-//     let mut result = [0.0; N];
-//     for (i, m) in modes.iter().enumerate() {
-//         let n = i + 1;
-//         let shape = (std::f32::consts::PI * n as f32 * strike_pos).sin().abs();
-//         result[i] = strike_strength * m.amp * shape;
-//     }
-//     result
-// }
 
 struct Pockyplocky {
     params: Arc<PockyplockyParams>,

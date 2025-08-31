@@ -11,6 +11,5 @@ To do:
 - Other... overtone... mod... things
   - Things to do with amplitude
   - Nudge the ratios a bit somehow "make more inharmonic?"
-- Double voice
 - Delay based reverby thing? or other delay effect
-- WAVE FOLDER
+- Update the exciter
