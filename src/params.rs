@@ -3,7 +3,6 @@ use std::sync::Arc;
 use nih_plug::prelude::*;
 
 use crate::constants::MAX_BLOCK_SIZE;
-use crate::modal_synth::envelope::EnvelopeCurve;
 
 #[derive(Params)]
 pub struct PockyplockyParams {
@@ -25,11 +24,11 @@ pub struct PockyplockyParams {
     #[id = "breath_attack"]
     pub breath_attack: FloatParam,
     #[id = "breath_attack_shape"]
-    pub breath_attack_shape: EnumParam<EnvelopeCurve>,
+    pub breath_attack_shape: EnumParam<BreathAttackCurve>,
     #[id = "breath_decay"]
     pub breath_decay: FloatParam,
     #[id = "breath_decay_shape"]
-    pub breath_decay_shape: EnumParam<EnvelopeCurve>,
+    pub breath_decay_shape: EnumParam<BreathDecayCurve>,
 
     // Tweaking the modes
     #[id = "fundamental_balance"]
@@ -70,6 +69,25 @@ pub enum Timbre {
     SteelDrum,
     #[name = "Metal Cup and Badminton Racquet"]
     MetalCup,
+}
+
+#[derive(Enum, Debug, Clone, Copy, PartialEq)]
+pub enum BreathAttackCurve {
+    #[name = "Linear"]
+    Linear,
+    #[name = "Logarithmic"]
+    Logarithmic,
+    #[name = "Exponential"]
+    Exponential,
+}
+
+// Logarithmic decay doesn't seem to be working properly in the envelope currently, disable it for now.
+#[derive(Enum, Debug, Clone, Copy, PartialEq)]
+pub enum BreathDecayCurve {
+    #[name = "Linear"]
+    Linear,
+    #[name = "Exponential"]
+    Exponential,
 }
 
 impl Default for PockyplockyParams {
@@ -114,7 +132,7 @@ impl Default for PockyplockyParams {
             )
             .with_unit(" ms"),
 
-            breath_attack_shape: EnumParam::new("Breath Attack Shape", EnvelopeCurve::Linear),
+            breath_attack_shape: EnumParam::new("Breath Attack Shape", BreathAttackCurve::Linear),
 
             breath_decay: FloatParam::new(
                 "Breath Decay",
@@ -126,7 +144,7 @@ impl Default for PockyplockyParams {
             )
             .with_unit(" ms"),
 
-            breath_decay_shape: EnumParam::new("Breath Decay Shape", EnvelopeCurve::Exponential),
+            breath_decay_shape: EnumParam::new("Breath Decay Shape", BreathDecayCurve::Exponential),
 
             fundamental_balance: FloatParam::new(
                 "Fundamental Balance",

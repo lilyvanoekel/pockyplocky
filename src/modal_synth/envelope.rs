@@ -1,15 +1,12 @@
 use crate::constants::{DEFAULT_SAMPLE_RATE, MAX_BLOCK_SIZE};
-use nih_plug::prelude::*;
+use crate::params;
 
 const EPS: f32 = 1e-6;
 
-#[derive(Debug, Clone, Copy, PartialEq, nih_plug::prelude::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum EnvelopeCurve {
-    #[name = "Linear"]
     Linear,
-    #[name = "Logarithmic"]
     Logarithmic,
-    #[name = "Exponential"]
     Exponential,
 }
 
@@ -61,16 +58,23 @@ impl Envelope {
         self.attack_time_ms = time_ms;
     }
 
-    pub fn set_attack_curve(&mut self, curve: EnvelopeCurve) {
-        self.attack_curve = curve;
+    pub fn set_attack_curve(&mut self, curve: params::BreathAttackCurve) {
+        self.attack_curve = match curve {
+            params::BreathAttackCurve::Linear => EnvelopeCurve::Linear,
+            params::BreathAttackCurve::Logarithmic => EnvelopeCurve::Logarithmic,
+            params::BreathAttackCurve::Exponential => EnvelopeCurve::Exponential,
+        };
     }
 
     pub fn set_decay_time(&mut self, time_ms: f32) {
         self.decay_time_ms = time_ms;
     }
 
-    pub fn set_decay_curve(&mut self, curve: EnvelopeCurve) {
-        self.decay_curve = curve;
+    pub fn set_decay_curve(&mut self, curve: params::BreathDecayCurve) {
+        self.decay_curve = match curve {
+            params::BreathDecayCurve::Linear => EnvelopeCurve::Linear,
+            params::BreathDecayCurve::Exponential => EnvelopeCurve::Exponential,
+        };
     }
 
     fn num_steps(&self, time_ms: f32) -> u32 {
