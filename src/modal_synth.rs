@@ -56,7 +56,7 @@ impl ModalSynth {
             }
         }
 
-        self.exciter.start();
+        self.exciter.start(frequency);
         max_decay_time
     }
 

@@ -6,26 +6,39 @@ use crate::constants::MAX_BLOCK_SIZE;
 
 #[derive(Params)]
 pub struct PockyplockyParams {
-    #[id = "gain"]
-    pub gain: FloatParam,
-    #[id = "timbre"]
-    pub timbre: EnumParam<Timbre>,
-    #[id = "noise_level"]
-    pub noise_level: FloatParam,
-    #[id = "noise_decay"]
-    pub noise_decay: FloatParam,
+    // Main params
+    #[id = "volume"]
+    pub volume: FloatParam,
     #[id = "decay"]
     pub decay: FloatParam,
+    #[id = "timbre"]
+    pub timbre: EnumParam<Timbre>,
+
+    // Exciter Params
+    #[id = "strike"]
+    pub strike: BoolParam,
+    #[id = "mallet"]
+    pub mallet: BoolParam,
+    #[id = "breath_level"]
+    pub breath_level: FloatParam,
+    #[id = "breath_decay"]
+    pub breath_decay: FloatParam,
+
+    // Tweaking the modes
     #[id = "fundamental_balance"]
     pub fundamental_balance: FloatParam,
     #[id = "sparkle"]
     pub sparkle: FloatParam,
-    #[id = "click"]
-    pub click: BoolParam,
+
+    // Effects
+
+    // Wave Folder
     #[id = "wave_folder_enabled"]
     pub wave_folder_enabled: BoolParam,
     #[id = "wave_folder_amount"]
     pub wave_folder_amount: FloatParam,
+
+    // Second voice
     #[id = "second_voice_enabled"]
     pub second_voice_enabled: BoolParam,
     #[id = "second_voice_detune"]
@@ -53,8 +66,8 @@ pub enum Timbre {
 impl Default for PockyplockyParams {
     fn default() -> Self {
         Self {
-            gain: FloatParam::new(
-                "Gain",
+            volume: FloatParam::new(
+                "Volume",
                 util::db_to_gain(-12.0),
                 FloatRange::Linear {
                     min: util::db_to_gain(-36.0),
@@ -66,17 +79,24 @@ impl Default for PockyplockyParams {
             .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
 
+            decay: FloatParam::new("Decay", 0.461, FloatRange::Linear { min: 0.1, max: 2.0 })
+                .with_unit(" s"),
+
             timbre: EnumParam::new("Timbre", Timbre::Xylophone),
 
-            noise_level: FloatParam::new(
-                "Noise Level (Filter)",
+            strike: BoolParam::new("Strike", false),
+
+            mallet: BoolParam::new("Mallet", true),
+
+            breath_level: FloatParam::new(
+                "Breath Level",
                 0.1,
                 FloatRange::Linear { min: 0.0, max: 0.5 },
             )
             .with_smoother(SmoothingStyle::Linear(50.0)),
 
-            noise_decay: FloatParam::new(
-                "Noise Decay",
+            breath_decay: FloatParam::new(
+                "Breath Decay",
                 400.0,
                 FloatRange::Linear {
                     min: 1.0,
@@ -84,9 +104,6 @@ impl Default for PockyplockyParams {
                 },
             )
             .with_unit(" ms"),
-
-            decay: FloatParam::new("Decay", 0.461, FloatRange::Linear { min: 0.1, max: 2.0 })
-                .with_unit(" s"),
 
             fundamental_balance: FloatParam::new(
                 "Fundamental Balance",
@@ -105,8 +122,6 @@ impl Default for PockyplockyParams {
                     max: 1.0,
                 },
             ),
-
-            click: BoolParam::new("Click", true),
 
             wave_folder_enabled: BoolParam::new("Wave Folder", false),
 
@@ -154,12 +169,12 @@ impl ParamBuffers {
 
     pub fn process_block(&mut self, block_len: usize) {
         self.params
-            .gain
+            .volume
             .smoothed
             .next_block(&mut self.gain_buffer[..block_len], block_len);
 
         self.params
-            .noise_level
+            .breath_level
             .smoothed
             .next_block(&mut self.noise_level_buffer[..block_len], block_len);
     }

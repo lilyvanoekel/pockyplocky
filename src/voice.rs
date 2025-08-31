@@ -81,8 +81,8 @@ impl Voice {
         let mut total_decay_time = max_decay_time;
 
         // If noise level is above 0, include noise decay time
-        if self.params.noise_level.value() > 0.0 {
-            let noise_decay_time = self.params.noise_decay.value() * 0.001;
+        if self.params.breath_level.value() > 0.0 {
+            let noise_decay_time = self.params.breath_decay.value() * 0.001;
             total_decay_time = total_decay_time.max(noise_decay_time);
         }
 
