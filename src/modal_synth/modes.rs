@@ -177,6 +177,36 @@ impl Timbre {
             decay: decay_factors[i] * decay,
         })
     }
+
+    pub fn build_metal_cup_modes(fundamental: f32, decay: f32) -> [Mode; NUM_MODES] {
+        let freq_ratios = [
+            1.000000000000000,
+            5.773067331670823,
+            8.700748129675810,
+            13.329177057356608,
+            20.957605985037404,
+            24.117206982543642,
+            31.286783042394013,
+            35.411471321695757,
+        ];
+        let amp_factors = [1.000, 0.109, 0.058, 0.031, 0.007, 0.008, 0.012, 0.012];
+        let decay_factors = [
+            1.000000000000000,
+            0.466325672229958,
+            0.190757590796148,
+            0.140479544493103,
+            0.228468838218124,
+            0.236733042101392,
+            0.184080322378180,
+            0.160926579642933,
+        ];
+
+        std::array::from_fn(|i| Mode {
+            frequency: freq_ratios[i] * fundamental,
+            amplitude: amp_factors[i],
+            decay: decay_factors[i] * decay,
+        })
+    }
 }
 
 pub struct ModeCalculator {
@@ -210,6 +240,7 @@ impl ModeCalculator {
             Timbre::Piano => Timbre::build_piano_modes(fundamental_freq, decay),
             Timbre::WoodBlocks => Timbre::build_wood_blocks_modes(fundamental_freq, decay),
             Timbre::SteelDrum => Timbre::build_steel_drum_modes(fundamental_freq, decay),
+            Timbre::MetalCup => Timbre::build_metal_cup_modes(fundamental_freq, decay),
         };
 
         let fundamental_balance = self.params.fundamental_balance.value();

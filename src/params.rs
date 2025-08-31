@@ -61,6 +61,8 @@ pub enum Timbre {
     WoodBlocks,
     #[name = "Steel Drum"]
     SteelDrum,
+    #[name = "Metal Cup and Badminton Racquet"]
+    MetalCup,
 }
 
 impl Default for PockyplockyParams {
