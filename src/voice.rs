@@ -80,10 +80,11 @@ impl Voice {
 
         let mut total_decay_time = max_decay_time;
 
-        // If noise level is above 0, include noise decay time
+        // If noise level is above 0, include breath envelope time
         if self.params.breath_level.value() > 0.0 {
-            let noise_decay_time = self.params.breath_decay.value() * 0.001;
-            total_decay_time = total_decay_time.max(noise_decay_time);
+            let breath_attack_time = self.params.breath_attack.value() * 0.001;
+            let breath_decay_time = self.params.breath_decay.value() * 0.001;
+            total_decay_time = total_decay_time + breath_attack_time + breath_decay_time;
         }
 
         self.total_duration = (self.sample_rate * total_decay_time) as usize;

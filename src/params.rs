@@ -3,6 +3,7 @@ use std::sync::Arc;
 use nih_plug::prelude::*;
 
 use crate::constants::MAX_BLOCK_SIZE;
+use crate::modal_synth::envelope::EnvelopeCurve;
 
 #[derive(Params)]
 pub struct PockyplockyParams {
@@ -21,8 +22,14 @@ pub struct PockyplockyParams {
     pub mallet: BoolParam,
     #[id = "breath_level"]
     pub breath_level: FloatParam,
+    #[id = "breath_attack"]
+    pub breath_attack: FloatParam,
+    #[id = "breath_attack_shape"]
+    pub breath_attack_shape: EnumParam<EnvelopeCurve>,
     #[id = "breath_decay"]
     pub breath_decay: FloatParam,
+    #[id = "breath_decay_shape"]
+    pub breath_decay_shape: EnumParam<EnvelopeCurve>,
 
     // Tweaking the modes
     #[id = "fundamental_balance"]
@@ -92,10 +99,22 @@ impl Default for PockyplockyParams {
 
             breath_level: FloatParam::new(
                 "Breath Level",
-                0.1,
+                0.0,
                 FloatRange::Linear { min: 0.0, max: 0.5 },
             )
             .with_smoother(SmoothingStyle::Linear(50.0)),
+
+            breath_attack: FloatParam::new(
+                "Breath Attack",
+                10.0,
+                FloatRange::Linear {
+                    min: 0.0,
+                    max: 200.0,
+                },
+            )
+            .with_unit(" ms"),
+
+            breath_attack_shape: EnumParam::new("Breath Attack Shape", EnvelopeCurve::Linear),
 
             breath_decay: FloatParam::new(
                 "Breath Decay",
@@ -106,6 +125,8 @@ impl Default for PockyplockyParams {
                 },
             )
             .with_unit(" ms"),
+
+            breath_decay_shape: EnumParam::new("Breath Decay Shape", EnvelopeCurve::Exponential),
 
             fundamental_balance: FloatParam::new(
                 "Fundamental Balance",

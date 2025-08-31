@@ -1,10 +1,10 @@
-use nih_plug::prelude::*;
 use rand::Rng;
 use rand_pcg::Pcg32;
 use std::sync::Arc;
 
 use crate::{
     constants::{DEFAULT_SAMPLE_RATE, MAX_BLOCK_SIZE},
+    modal_synth::envelope::Envelope,
     params::{ParamBuffers, PockyplockyParams},
 };
 
@@ -58,11 +58,11 @@ impl HannBurst {
 pub struct Exciter {
     params: Arc<PockyplockyParams>,
     sample_rate: f32,
-    noise_envelope: Smoother<f32>,
-    noise_envelope_values: [f32; MAX_BLOCK_SIZE],
+    breath_envelope: Envelope,
     trigger: f32,
     hann: HannBurst,
     prng: Pcg32,
+    render_noise: bool,
 }
 
 impl Exciter {
@@ -70,27 +70,37 @@ impl Exciter {
         Self {
             params,
             sample_rate: DEFAULT_SAMPLE_RATE,
-            noise_envelope: Smoother::none(),
-            noise_envelope_values: [0.0; MAX_BLOCK_SIZE],
+            breath_envelope: Envelope::new(),
             trigger: 0.0,
             hann: HannBurst::new(0.4),
             prng: Pcg32::new(12345, 67890),
+            render_noise: false,
         }
     }
 
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
+        self.breath_envelope.set_sample_rate(sample_rate);
     }
 
     pub fn start(&mut self, fundamental: f32) {
-        self.noise_envelope.style = SmoothingStyle::Exponential(self.params.breath_decay.value());
-        self.noise_envelope.reset(1.0);
-        self.noise_envelope.set_target(self.sample_rate, 0.0);
+        self.breath_envelope
+            .set_attack_time(self.params.breath_attack.value());
+        self.breath_envelope
+            .set_attack_curve(self.params.breath_attack_shape.value());
+        self.breath_envelope
+            .set_decay_time(self.params.breath_decay.value());
+        self.breath_envelope
+            .set_decay_curve(self.params.breath_decay_shape.value());
+        self.breath_envelope.start();
+
         self.trigger = if self.params.strike.value() { 1.0 } else { 0.0 };
 
         if self.params.mallet.value() {
             self.hann.trigger(self.sample_rate, fundamental);
         }
+
+        self.render_noise = self.params.breath_level.value() > 0.0;
     }
 
     pub fn process_block(
@@ -100,23 +110,27 @@ impl Exciter {
         param_buffers: &ParamBuffers,
     ) {
         let noise_level_buffer = param_buffers.get_noise_level_buffer();
+        let envelope_values = self.breath_envelope.process_block(block_len);
 
-        self.noise_envelope
-            .next_block(&mut self.noise_envelope_values[..block_len], block_len);
+        if self.render_noise {
+            for i in 0..block_len {
+                let noise_sample =
+                    self.prng.gen_range(-1.0..=1.0) * envelope_values[i] * noise_level_buffer[i];
 
-        for i in 0..block_len {
-            let noise_sample = self.prng.gen_range(-1.0..=1.0)
-                * self.noise_envelope_values[i]
-                * noise_level_buffer[i];
+                output[i] = noise_sample + self.trigger;
+                self.trigger = 0.0;
+            }
+        } else {
+            for i in 0..block_len {
+                output[i] = self.trigger;
+                self.trigger = 0.0;
+            }
+        }
 
-            let hann_sample = if self.params.mallet.value() {
-                self.hann.next_sample()
-            } else {
-                0.0
-            };
-
-            output[i] = self.trigger + noise_sample + hann_sample;
-            self.trigger = 0.0;
+        if self.params.mallet.value() {
+            for i in 0..block_len {
+                output[i] += self.hann.next_sample();
+            }
         }
     }
 }

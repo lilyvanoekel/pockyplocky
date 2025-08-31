@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-mod envelope;
+pub mod envelope;
 mod exciter;
 mod modes;
 mod resonator;
