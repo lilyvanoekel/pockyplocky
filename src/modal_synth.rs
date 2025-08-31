@@ -7,10 +7,10 @@ mod resonator;
 mod wave_folder;
 
 use crate::{
-    modal_synth::exciter::Exciter,
-    modal_synth::modes::ModeCalculator,
-    modal_synth::resonator::ModalResonator,
-    modal_synth::wave_folder::WaveFolder,
+    constants::DEFAULT_SAMPLE_RATE,
+    modal_synth::{
+        exciter::Exciter, modes::ModeCalculator, resonator::ModalResonator, wave_folder::WaveFolder,
+    },
     params::{ParamBuffers, PockyplockyParams},
 };
 
@@ -29,7 +29,7 @@ impl ModalSynth {
         Self {
             params: params.clone(),
             velocity_sqrt: 0.0,
-            sample_rate: 44100.0,
+            sample_rate: DEFAULT_SAMPLE_RATE,
             calculator: ModeCalculator::new(params.clone()),
             resonator: ModalResonator::new(),
             exciter: Exciter::new(params.clone()),

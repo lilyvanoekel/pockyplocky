@@ -1,6 +1,6 @@
 use nih_plug::prelude::*;
 
-use crate::constants::MAX_BLOCK_SIZE;
+use crate::constants::{DEFAULT_SAMPLE_RATE, MAX_BLOCK_SIZE};
 
 pub struct Envelope {
     sample_rate: f32,
@@ -11,7 +11,7 @@ pub struct Envelope {
 impl Envelope {
     pub fn new() -> Self {
         Self {
-            sample_rate: 44100.0,
+            sample_rate: DEFAULT_SAMPLE_RATE,
             envelope: Smoother::none(),
             envelope_values: [0.0; MAX_BLOCK_SIZE],
         }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use nih_plug::prelude::*;
 
 use crate::{
-    constants::MAX_BLOCK_SIZE,
+    constants::{DEFAULT_SAMPLE_RATE, MAX_BLOCK_SIZE},
     modal_synth::ModalSynth,
     params::{ParamBuffers, PockyplockyParams},
 };
@@ -33,7 +33,7 @@ impl Voice {
             note: 0,
             internal_voice_id: 0,
             velocity_sqrt: 0.0,
-            sample_rate: 44100.0,
+            sample_rate: DEFAULT_SAMPLE_RATE,
             total_duration: 0,
             sample_count: 0,
             modal_synth: ModalSynth::new(params.clone()),
@@ -73,13 +73,20 @@ impl Voice {
             .modal_synth
             .start(frequency * detune_factor1, velocity, decay);
 
-        // Only start second voice if enabled
         if self.params.second_voice_enabled.value() {
             self.modal_synth2
                 .start(frequency * detune_factor2, velocity, decay);
         }
 
-        self.total_duration = (self.sample_rate * max_decay_time) as usize;
+        let mut total_decay_time = max_decay_time;
+
+        // If noise level is above 0, include noise decay time
+        if self.params.noise_level.value() > 0.0 {
+            let noise_decay_time = self.params.noise_decay.value() * 0.001;
+            total_decay_time = total_decay_time.max(noise_decay_time);
+        }
+
+        self.total_duration = (self.sample_rate * total_decay_time) as usize;
         self.active = true;
     }
 

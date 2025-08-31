@@ -1,4 +1,7 @@
-use crate::modal_synth::modes::{Mode, NUM_MODES};
+use crate::{
+    constants::DEFAULT_SAMPLE_RATE,
+    modal_synth::modes::{Mode, NUM_MODES},
+};
 use wide::f32x8;
 
 pub const T60_DECAY_FACTOR: f32 = -6.91; // -ln(1000) for 60dB decay
@@ -16,8 +19,7 @@ pub struct ModalResonator {
 
 impl ModalResonator {
     pub fn new() -> Self {
-        let sample_rate = 44100.0;
-        let sample_rate_inv = 1.0 / sample_rate;
+        let sample_rate_inv = 1.0 / DEFAULT_SAMPLE_RATE;
         Self {
             b0: [0.0; NUM_MODES],
             a1: [0.0; NUM_MODES],

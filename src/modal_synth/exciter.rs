@@ -5,7 +5,7 @@ use rand::Rng;
 use rand_pcg::Pcg32;
 
 use crate::{
-    constants::MAX_BLOCK_SIZE,
+    constants::{DEFAULT_SAMPLE_RATE, MAX_BLOCK_SIZE},
     params::{ParamBuffers, PockyplockyParams},
 };
 
@@ -22,7 +22,7 @@ impl Exciter {
     pub fn new(params: Arc<PockyplockyParams>) -> Self {
         Self {
             params,
-            sample_rate: 44100.0,
+            sample_rate: DEFAULT_SAMPLE_RATE,
             noise_envelope: Smoother::none(),
             noise_envelope_values: [0.0; MAX_BLOCK_SIZE],
             trigger: 0.0,
