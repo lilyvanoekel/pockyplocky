@@ -19,6 +19,8 @@ pub struct PockyplockyParams {
     pub strike: BoolParam,
     #[id = "mallet"]
     pub mallet: BoolParam,
+    #[id = "mallet_hardness"]
+    pub mallet_hardness: FloatParam,
     #[id = "breath_level"]
     pub breath_level: FloatParam,
     #[id = "breath_attack"]
@@ -114,6 +116,12 @@ impl Default for PockyplockyParams {
             strike: BoolParam::new("Strike", false),
 
             mallet: BoolParam::new("Mallet", true),
+
+            mallet_hardness: FloatParam::new(
+                "Mallet Hardness",
+                0.5,
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            ),
 
             breath_level: FloatParam::new(
                 "Breath Level",

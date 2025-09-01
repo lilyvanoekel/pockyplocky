@@ -54,6 +54,14 @@ impl Envelope {
         self.sample_rate = sample_rate;
     }
 
+    pub fn reset(&mut self) {
+        self.current_stage = EnvelopeStage::Idle;
+        self.current_value = 0.0;
+        self.target_value = 0.0;
+        self.steps_left = 0;
+        self.step_size = 0.0;
+    }
+
     pub fn set_attack_time(&mut self, time_ms: f32) {
         self.attack_time_ms = time_ms;
     }

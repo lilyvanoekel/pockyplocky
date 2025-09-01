@@ -262,4 +262,12 @@ impl ModeCalculator {
             }
         }
     }
+
+    pub fn reset(&mut self) {
+        for mode in &mut self.modes {
+            mode.frequency = 0.0;
+            mode.amplitude = 0.0;
+            mode.decay = 0.0;
+        }
+    }
 }

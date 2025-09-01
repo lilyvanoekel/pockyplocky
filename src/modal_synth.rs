@@ -16,7 +16,6 @@ use crate::{
 
 pub struct ModalSynth {
     params: Arc<PockyplockyParams>,
-    pub velocity_sqrt: f32,
     pub sample_rate: f32,
     pub calculator: ModeCalculator,
     pub resonator: ModalResonator,
@@ -28,7 +27,6 @@ impl ModalSynth {
     pub fn new(params: Arc<PockyplockyParams>) -> Self {
         Self {
             params: params.clone(),
-            velocity_sqrt: 0.0,
             sample_rate: DEFAULT_SAMPLE_RATE,
             calculator: ModeCalculator::new(params.clone()),
             resonator: ModalResonator::new(),
@@ -43,8 +41,13 @@ impl ModalSynth {
         self.exciter.set_sample_rate(sample_rate);
     }
 
+    pub fn reset(&mut self) {
+        self.resonator.reset();
+        self.exciter.reset();
+        self.calculator.reset();
+    }
+
     pub fn start(&mut self, frequency: f32, velocity: f32, decay: f32) -> f32 {
-        self.velocity_sqrt = velocity.sqrt();
         self.resonator.reset();
         self.calculator.set_frequency(frequency, decay);
         let modes = self.calculator.get_modes();
@@ -56,7 +59,7 @@ impl ModalSynth {
             }
         }
 
-        self.exciter.start(frequency);
+        self.exciter.start(frequency, velocity);
         max_decay_time
     }
 

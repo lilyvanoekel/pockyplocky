@@ -15,7 +15,6 @@ pub struct Voice {
     pub channel: u8,
     pub note: u8,
     pub internal_voice_id: u64,
-    pub velocity_sqrt: f32,
     pub sample_rate: f32,
     pub total_duration: usize, // Total duration based on longest mode decay time
     pub sample_count: usize,   // Current sample count since start
@@ -32,7 +31,6 @@ impl Voice {
             channel: 0,
             note: 0,
             internal_voice_id: 0,
-            velocity_sqrt: 0.0,
             sample_rate: DEFAULT_SAMPLE_RATE,
             total_duration: 0,
             sample_count: 0,
@@ -59,15 +57,14 @@ impl Voice {
         self.channel = channel;
         self.note = note;
         self.internal_voice_id = internal_voice_id;
-        self.velocity_sqrt = velocity.sqrt();
         self.sample_count = 0;
         let frequency = util::midi_note_to_freq(note);
         let decay = self.params.decay.value();
 
         // Calculate detune factors based on percentage
         let detune = self.params.second_voice_detune.value();
-        let detune_factor1 = 1.0 - detune * 0.02; // Max 2% detune
-        let detune_factor2 = 1.0 + detune * 0.02;
+        let detune_factor1 = 1.0 - detune * 0.01;
+        let detune_factor2 = 1.0 + detune * 0.01;
 
         let max_decay_time = self
             .modal_synth
@@ -135,6 +132,14 @@ impl Voice {
     }
 
     pub fn reset(&mut self) {
-        *self = Self::new(self.params.clone());
+        self.voice_id = 0;
+        self.channel = 0;
+        self.note = 0;
+        self.internal_voice_id = 0;
+        self.total_duration = 0;
+        self.sample_count = 0;
+        self.active = false;
+        self.modal_synth.reset();
+        self.modal_synth2.reset();
     }
 }
