@@ -40,6 +40,36 @@ impl Timbre {
         })
     }
 
+    pub fn build_xylophone2_modes(fundamental: f32, decay: f32) -> [Mode; NUM_MODES] {
+        let freq_ratios = [
+            1.000000000000000,
+            4.115606936416185,
+            8.132947976878613,
+            11.497109826589597,
+            15.202312138728324,
+            17.086705202312142,
+            21.624277456647402,
+            23.820809248554916,
+        ];
+        let amp_factors = [1.000, 0.101, 0.043, 0.003, 0.005, 0.003, 0.002, 0.005];
+        let decay_factors = [
+            1.000000000000000,
+            0.300444224041017,
+            0.214891488770736,
+            0.337197751120588,
+            0.144160455845560,
+            0.140557714902721,
+            0.137480554193496,
+            0.121315868812830,
+        ];
+
+        std::array::from_fn(|i| Mode {
+            frequency: freq_ratios[i] * fundamental,
+            amplitude: amp_factors[i],
+            decay: decay_factors[i] * decay,
+        })
+    }
+
     pub fn build_metal_pan_modes(fundamental: f32, decay: f32) -> [Mode; NUM_MODES] {
         let freq_ratios = [
             1.000000000000000,
@@ -235,6 +265,7 @@ impl ModeCalculator {
 
         let new_modes = match timbre {
             Timbre::Xylophone => Timbre::build_xylophone_modes(fundamental_freq, decay),
+            Timbre::Xylophone2 => Timbre::build_xylophone2_modes(fundamental_freq, decay),
             Timbre::MetalPan => Timbre::build_metal_pan_modes(fundamental_freq, decay),
             Timbre::GlassMarimba => Timbre::build_glass_marimba_modes(fundamental_freq, decay),
             Timbre::Piano => Timbre::build_piano_modes(fundamental_freq, decay),

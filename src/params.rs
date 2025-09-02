@@ -59,6 +59,8 @@ pub struct PockyplockyParams {
 pub enum Timbre {
     #[name = "Xylophone"]
     Xylophone,
+    #[name = "Bass Xylophone"]
+    Xylophone2,
     #[name = "Metal Pan"]
     MetalPan,
     #[name = "Glass Marimba"]
