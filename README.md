@@ -2,6 +2,8 @@
 
 Pockyplocky is a synthesizer that aims to produce sounds inspired by tuned percussion instruments such as xylophones. It uses modal synthesis to achieve this and offers a number of fixed timbres that can be customized with parameters. It is available as a [CLAP](https://cleveraudio.org/) plugin (althought adding VST3 support is easy).
 
+[pockyplocky.mp3](https://github.com/user-attachments/files/22163208/pockyplocky.mp3)
+
 ## Parameters
 
 ### Main Controls
