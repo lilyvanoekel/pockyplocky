@@ -33,6 +33,7 @@ impl ModalResonator {
         }
     }
 
+    #[allow(clippy::needless_range_loop)]
     pub fn set_modes(&mut self, modes: &[Mode; NUM_MODES]) {
         for i in 0..NUM_MODES {
             let omega = self.omega_factor * modes[i].frequency;

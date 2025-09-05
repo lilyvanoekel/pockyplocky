@@ -150,15 +150,15 @@ impl Exciter {
                 self.trigger = 0.0;
             }
         } else {
-            for i in 0..block_len {
-                output[i] = self.trigger;
+            for sample in output.iter_mut().take(block_len) {
+                *sample = self.trigger;
                 self.trigger = 0.0;
             }
         }
 
         if self.params.mallet.value() {
-            for i in 0..block_len {
-                output[i] += self.hann.process();
+            for sample in output.iter_mut().take(block_len) {
+                *sample += self.hann.process();
             }
         }
     }

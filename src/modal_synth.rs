@@ -63,6 +63,7 @@ impl ModalSynth {
         max_decay_time
     }
 
+    #[allow(clippy::needless_range_loop)]
     pub fn process_block(
         &mut self,
         output: &mut [f32],

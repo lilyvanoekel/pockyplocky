@@ -178,7 +178,7 @@ impl Default for PockyplockyParams {
 
             wave_folder_amount: FloatParam::new(
                 "Wave Folder Amount",
-                1.0,
+                1.5,
                 FloatRange::Linear { min: 1.0, max: 5.0 },
             ),
 
@@ -186,7 +186,7 @@ impl Default for PockyplockyParams {
 
             second_voice_detune: FloatParam::new(
                 "Second Voice Detune",
-                0.0,
+                0.2,
                 FloatRange::Linear {
                     min: -1.0,
                     max: 1.0,
@@ -196,7 +196,7 @@ impl Default for PockyplockyParams {
 
             second_voice_stereo_spread: FloatParam::new(
                 "Second Voice Stereo Spread",
-                0.5,
+                0.7,
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             ),
         }

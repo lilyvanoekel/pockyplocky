@@ -88,6 +88,7 @@ impl Voice {
         self.active = true;
     }
 
+    #[allow(clippy::needless_range_loop)]
     pub fn process_block(
         &mut self,
         block_start: usize,
