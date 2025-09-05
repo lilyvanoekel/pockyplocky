@@ -40,7 +40,30 @@ This synthesizer generates harmonics to simulate various timbres. A mode has a f
 - **Second Voice Detune** - How much to detune the second voice
 - **Second Voice Stereo Spread** - How wide to spread the voices in stereo
 
+## Timbres
+
+The synthesizer includes 8 different instrument sounds:
+
+- **Xylophone** - Classic wooden xylophone sound
+- **Bass Xylophone** - Lower-pitched variant
+- **Metal Pan** - Metallic percussive sound
+- **Glass Marimba** - Glassy, crystalline timbre
+- **Piano** - Piano-like percussive attack
+- **Wood Blocks** - Wooden block percussion
+- **Steel Drum** - Caribbean steel drum sound
+- **Metal Cup and Badminton Racquet** - Surprisingly pleasant
+
 ## Building
+
+### OSX
 
 RUSTFLAGS="-C target-cpu=native" cargo xtask bundle pockyplocky --release
 cp -r ./target/bundled/pockyplocky.clap /Library/Audio/Plug-Ins/CLAP
+
+## Usage
+
+You need a DAW (such as [Reaper](https://www.reaper.fm/), or [Bitwig](https://www.bitwig.com/)) to use this synthesizer. It does not currently have a standalone or web version.
+
+### UI
+
+Currently Pockyplocky does not come with a UI... uh... I mean, Pockyplocky is by design a headless plugin. It will use the default parameter UI as provided by the DAW.
