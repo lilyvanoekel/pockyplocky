@@ -4,6 +4,12 @@ Pockyplocky is a synthesizer that aims to produce sounds inspired by tuned percu
 
 [pockyplocky.mp3](https://github.com/user-attachments/files/22163208/pockyplocky.mp3)
 
+## Project Status
+
+Pockyplocky is ready for use in the sense that if you know how to compile it, you can use it to make sounds. Personally, for my tastes, I kind of think that maybe the sounds are relatively nice maybe. I hope that didn't come across as overly confident or arrogant. Having said that, the sounds might change in the future and there's as of yet no "stable" release.
+
+It should probably also come with some better building and usage instructions.
+
 ## Parameters
 
 ### Main Controls
