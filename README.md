@@ -63,8 +63,10 @@ The synthesizer includes 8 different instrument sounds:
 
 ### OSX
 
+```
 RUSTFLAGS="-C target-cpu=native" cargo xtask bundle pockyplocky --release
 cp -r ./target/bundled/pockyplocky.clap /Library/Audio/Plug-Ins/CLAP
+```
 
 ## Usage
 
