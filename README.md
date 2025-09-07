@@ -75,3 +75,7 @@ You need a DAW (such as [Reaper](https://www.reaper.fm/), or [Bitwig](https://ww
 ### UI
 
 Currently Pockyplocky does not come with a UI... uh... I mean, Pockyplocky is by design a headless plugin. It will use the default parameter UI as provided by the DAW.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
