@@ -73,6 +73,8 @@ pub enum Timbre {
     SteelDrum,
     #[name = "Metal Cup and Badminton Racquet"]
     MetalCup,
+    #[name = "Cowbell"]
+    Cowbell,
 }
 
 #[derive(Enum, Debug, Clone, Copy, PartialEq)]

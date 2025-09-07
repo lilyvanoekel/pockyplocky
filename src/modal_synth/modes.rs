@@ -15,7 +15,7 @@ struct TimbreData {
     decay_factors: [f32; NUM_MODES],
 }
 
-const TIMBRE_DATA: [TimbreData; 8] = [
+const TIMBRE_DATA: [TimbreData; 9] = [
     // Xylophone
     TimbreData {
         freq_ratios: [
@@ -95,6 +95,16 @@ const TIMBRE_DATA: [TimbreData; 8] = [
         amp_factors: [1.000, 0.109, 0.058, 0.031, 0.007, 0.008, 0.012, 0.012],
         decay_factors: [
             1.0, 0.46632567, 0.19075759, 0.14047954, 0.22846884, 0.23673304, 0.18408032, 0.16092658,
+        ],
+    },
+    // Cowbell
+    TimbreData {
+        freq_ratios: [
+            0.99, 2.617788, 5.194327, 7.142597, 9.11625, 11.4548, 17.5057, 29.8047,
+        ],
+        amp_factors: [1.000, 0.157, 0.133, 0.041, 0.157, 0.077, 0.059, 0.004],
+        decay_factors: [
+            1.0, 0.479536, 0.987948, 1.087171, 0.457817, 0.545215, 0.449881, 0.324752,
         ],
     },
 ];
